@@ -1,14 +1,14 @@
 # My tools for work. 
 
 ### Getting Started
-To work, install all the necessary dependencies from the requirements file.txt
+To work, install all the necessary dependencies from the file requirements.txt
 ```
 pip install -r requirements.txt
 ```
 
-### Description of tools
+## Description of tools
 
-####  Avito API - for working with the avito API
+###  Avito API - for working with the avito API
 To work, pass client_secret and client_id when initializing the class. 
 
 You can get this information from avito.ru technical support.
