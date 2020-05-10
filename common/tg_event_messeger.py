@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-class EventMessenger():
+class EventMessenger:
 
     def __init__(self, url, secret=None, host=None, chat_id=None):
         self.url = url

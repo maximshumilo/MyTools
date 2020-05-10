@@ -145,12 +145,3 @@ def offset_limit_order(qs, natural_sort=False, **kwargs):
         qs = qs[:kwargs['limit']]
     return qs
 
-
-def login_required(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if not current_user:
-            return {'errors': {"auth": 'Not authenticated'}}, 401
-        return func(*args, **kwargs)
-    return wrapper
-
