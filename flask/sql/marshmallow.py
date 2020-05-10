@@ -1,5 +1,6 @@
 from functools import partial
 
+from flask import request
 from marshmallow import ValidationError
 
 
@@ -87,3 +88,28 @@ def to_list(validate_items=str, field_name='price_range'):
         return list_values
 
     return partial(to_instance, validate=validate_items, field=field_name)
+
+
+def check_params_get(schema, exclude_list=None, only_fields=None, **kwargs):
+    """ Check param from request (GET) """
+    exclude_list = [] if exclude_list is None else exclude_list
+    try:
+        params = schema(exclude=exclude_list, only=only_fields, **kwargs).load(request.args)
+    except ValidationError as exc:
+        return None, exc.messages
+    return params, None
+
+
+def check_params(schema, exclude_list=None, only_fields=None, partial=False):
+    """ Check params from request (POST, PUT, DELETE). JSON format """
+    exclude_list = [] if exclude_list is None else exclude_list
+    if not request.is_json:
+        return None, {"common": "Cannot parse json"}
+    try:
+        params = schema(exclude=exclude_list, only=only_fields, partial=partial, unknown='exclude').load(request.json)
+    except Exception as exc:
+        if exc.__repr__().startswith('Bad Request'):
+            return None, exc.description
+        return None, exc.messages
+    else:
+        return params, None

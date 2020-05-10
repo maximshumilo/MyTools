@@ -59,57 +59,41 @@ Parameter `user_id` required for methods: `get_reports, get_last_report`
     ```
 
 ##  tg_event_messeger.py 
-functions fro working with request methods
-DescriptionDescriptionDescriptionDescription
-DescriptionDescriptionDescriptionDescription
-DescriptionDescriptionDescriptionDescription
+Sending event messages in a Telegram
 
 ### Examples
-- Init AvitoAPI:
+- Init:
 
-    ```
-    api_avito = AvitoAPI(avito_client_id, avito_client_secret, user_id=user_id)
-    ```
-- Get last report
-
-    ```
-    api_avito = AvitoAPI(avito_client_id, avito_client_secret, user_id=user_id)
-    ```
 ##  ya_bucket.py
-functions fro working with request methods
-DescriptionDescriptionDescriptionDescription
-DescriptionDescriptionDescriptionDescription
-DescriptionDescriptionDescriptionDescription
+Методы для работы c YandexBucket. Используется библиотека boto3
 
 ### Examples
 - Init YandexBucket:
 
-    ```
-    api_avito = AvitoAPI(avito_client_id, avito_client_secret, user_id=user_id)
-    ```
-- Get last report
-
-    ```
-    api_avito = AvitoAPI(avito_client_id, avito_client_secret, user_id=user_id)
-    ```
 # flask/
-DescriptionDescriptionDescriptionDescription
+Here are my tools for convenient work with Flask
 
 ## common/
-DescriptionDescriptionDescriptionDescription
+General helper scripts.
+Do not import, only copy to the project and edit
 
 ### auth.py
+Methods for authorization and authentication
 ### decorators.py
+Decorators
 ### test_case.py
+General test case
 
 ## mongo/
 For using MongoDB and mongoengine
 ### utils.py
 
 ## sql/
-For using MongoDB and mongoengine
+Tools for working with Flask + SQL
 ### marshmallow.py
+Auxiliary functions for working with marshmallow
 ### utils.py
+Auxiliary functions for working with data received from the database
 
 
 

@@ -1,34 +1,7 @@
 from functools import reduce
 
-from flask import request
-from marshmallow import ValidationError
 from natsort import natsorted, ns
 from sqlalchemy import desc
-
-
-def load_params_get(schema, exclude_list=None, only_fields=None, **kwargs):
-    """Load query params"""
-    exclude_list = [] if exclude_list is None else exclude_list
-    try:
-        params = schema(exclude=exclude_list, only=only_fields, **kwargs).load(request.args)
-    except ValidationError as exc:
-        return None, exc.messages
-    return params, None
-
-
-def load_params(schema, exclude_list=None, only_fields=None, partial=False):
-    """Load request params"""
-    exclude_list = [] if exclude_list is None else exclude_list
-    if not request.is_json:
-        return None, {"common": "Cannot parse json"}
-    try:
-        params = schema(exclude=exclude_list, only=only_fields, partial=partial, unknown='exclude').load(request.json)
-    except Exception as exc:
-        if exc.__repr__().startswith('Bad Request'):
-            return None, exc.description
-        return None, exc.messages
-    else:
-        return params, None
 
 
 def query_filter(query=None, **params):

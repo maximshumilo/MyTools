@@ -3,8 +3,8 @@ from marshmallow import ValidationError
 from mongoengine.errors import ValidationError as MongoValidationError
 
 
-def check_args(schema, **kwargs):
-    """ Check args from request (GET) """
+def load_params_get(schema, **kwargs):
+    """ Check params from request (GET) """
     try:
         args, errors = schema(**kwargs).load(request.args)
     except ValidationError as exc:

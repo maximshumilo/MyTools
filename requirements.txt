@@ -4,3 +4,4 @@ marshmallow==3.5.0
 mongoengine==0.19.1
 marshmallow==3.6.0
 natsort==7.0.1
+python-dotenv==0.13.0
