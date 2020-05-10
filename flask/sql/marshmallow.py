@@ -7,6 +7,8 @@ def convert_to_instance(model, field='id', many=False, return_field=None, error=
     def to_instance(value, context, model, field, many, error, return_field, field_type):
         if error:
             _error = error
+        else:
+            _error = 'Неверный формат идентификатора'
         # Если указано несколько идентификаторов
         if many:
             # Удаляем дубликаты
@@ -27,8 +29,6 @@ def convert_to_instance(model, field='id', many=False, return_field=None, error=
             return docs
 
         # Если указан один идентификатор
-        if not error:
-            _error = 'Неверный формат идентификатора'
         if field_type == int and type(value) in [bool, float]:
             raise ValidationError(_error, field_name=field)
         else:
@@ -68,19 +68,6 @@ def to_list_range_int(field_name='price_range'):
         return range_values
 
     return partial(to_instance, field_name=field_name)
-
-
-def if_null(field_name, null_value=None, empties=None):
-    def inner(obj, context, field_name, null_value, empties):
-        value = getattr(obj, field_name)
-        if value in empties:
-            return null_value
-        return value
-
-    if empties is None:
-        empties = [None]
-
-    return partial(inner, field_name=field_name, null_value=null_value, empties=empties)
 
 
 def to_list(validate_items=str, field_name='price_range'):

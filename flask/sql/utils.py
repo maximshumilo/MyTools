@@ -6,12 +6,9 @@ from natsort import natsorted, ns
 from sqlalchemy import desc
 
 
-def check_params_get(schema, exclude_list=[], only_fields=None, **kwargs):
-    """
-    :param schema: Схема GET параметров
-    :return:
-    """
-    errors = {}
+def load_params_get(schema, exclude_list=None, only_fields=None, **kwargs):
+    """Load query params"""
+    exclude_list = [] if exclude_list is None else exclude_list
     try:
         params = schema(exclude=exclude_list, only=only_fields, **kwargs).load(request.args)
     except ValidationError as exc:
@@ -19,10 +16,9 @@ def check_params_get(schema, exclude_list=[], only_fields=None, **kwargs):
     return params, None
 
 
-def check_params(schema, exclude_list=None, only_fields=None, partial=False):
-    """Check request params"""
-    if exclude_list is None:
-        exclude_list = []
+def load_params(schema, exclude_list=None, only_fields=None, partial=False):
+    """Load request params"""
+    exclude_list = [] if exclude_list is None else exclude_list
     if not request.is_json:
         return None, {"common": "Cannot parse json"}
     try:
