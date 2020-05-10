@@ -1,11 +1,9 @@
-from functools import reduce, wraps
+from functools import reduce
 
 from flask import request
 from marshmallow import ValidationError
 from natsort import natsorted, ns
 from sqlalchemy import desc
-
-from data_layer.utils.auth import current_user
 
 
 def check_params_get(schema, exclude_list=[], only_fields=None, **kwargs):
@@ -114,13 +112,13 @@ def natural_sorted(ordering_list, field=None, ignore_case=None, **kwargs):
         field = field[1:]
         kwargs['reverse'] = True
     if isinstance(ordering_list[0], object):
-        kwargs['key'] = lambda x: '' if field not in x.keys() else x[field]
+        kwargs['key'] = lambda x: '' if field not in x.columns else getattr(x, field)
     if ignore_case:
         kwargs['alg'] = ns.IGNORECASE
     return natsorted(ordering_list, **kwargs)
 
 
-def offset_limit_order(qs, natural_sort=False, **kwargs):
+def offset_limit_order(qs, natural_sort=True, **kwargs):
     """
     Функция для сортировки, смещения и установки лимита для QuerySet
 
@@ -138,10 +136,9 @@ def offset_limit_order(qs, natural_sort=False, **kwargs):
                 qs = qs.order_by(desc(kwargs['order_by'][1:]))
             else:
                 qs = qs.order_by(kwargs['order_by'])
-    qs = qs.all()
+    qs = qs.all() if not isinstance(qs, list) else qs
     if kwargs.get('offset'):
         qs = qs[kwargs['offset']:]
     if kwargs.get('limit'):
         qs = qs[:kwargs['limit']]
     return qs
-

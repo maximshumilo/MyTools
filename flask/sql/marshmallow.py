@@ -4,7 +4,6 @@ from marshmallow import ValidationError
 
 
 def convert_to_instance(model, field='id', many=False, return_field=None, error='', field_type=int):
-
     def to_instance(value, context, model, field, many, error, return_field, field_type):
         if error:
             _error = error
@@ -14,7 +13,7 @@ def convert_to_instance(model, field='id', many=False, return_field=None, error=
             value = list(set(value.split(','))) if not isinstance(value, list) else list(set(value))
 
             # Получаем документы из базы
-            docs = [model.where(**{field: _id}).first() for _id in value if isinstance(_id, int)]
+            docs = [model.where(**{field: int(_id)}).first() for _id in value]
             if not docs:
                 if not error:
                     _error = 'По данным идентификаторам, ничего не найдено'
@@ -72,7 +71,6 @@ def to_list_range_int(field_name='price_range'):
 
 
 def if_null(field_name, null_value=None, empties=None):
-
     def inner(obj, context, field_name, null_value, empties):
         value = getattr(obj, field_name)
         if value in empties:
@@ -80,19 +78,22 @@ def if_null(field_name, null_value=None, empties=None):
         return value
 
     if empties is None:
-         empties = [None]
+        empties = [None]
 
     return partial(inner, field_name=field_name, null_value=null_value, empties=empties)
 
 
-def to_list(validate_items=None, field_name='price_range'):
-    def to_instance(value, context, validate=validate_items, field=field_name):
+def to_list(validate_items=str, field_name='price_range'):
+    def to_instance(value, context, validate, field=field_name):
         if not value:
             return []
         list_values = list(set(value.split(',')))
-        for item in list_values:
+        for k, item in enumerate(list_values):
             try:
-                validate(item)
+                if validate == bool:
+                    list_values[k] = item == 'true'
+                else:
+                    list_values[k] = validate(item)
             except Exception:
                 error = f'Один из параметров имеет неверный тип данных. Ожидается: {validate.__name__} '
                 raise ValidationError(error, field_name=field)
