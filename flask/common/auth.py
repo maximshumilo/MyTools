@@ -1,30 +1,21 @@
+from functools import wraps
 from flask import _request_ctx_stack, has_request_context, session
-from werkzeug.local import LocalProxy
-
-from data_layer.models import User
 
 
-def user_loader(user_id):
-    try:
-        return User.where(state='active', id=user_id).first()
-    except:
-        return None
-
-
-def authenticate(email=None, user=None, password=None, token=None):
+def authenticate(user_model, user=None, email: str = None, password: str = None, token: str = None):
     """
-    Аутентифицирует пользователя по паре username-password
+    Аутентифицирует пользователя по паре email-password
 
-    :rtype : User or None
-    :param username: Имя пользователя
-    :type username: str
+    :param user_model: Модель пользователя
+    :param user: Пользователь
+    :param email: Email пользователя
     :param password: Пароль пользователя в открытом виде
-    :type password: str
+    :param token: Токен пользователя
     :return: Аутентифицированный пользователь в случае совпадения пароля, иначе None
     """
     try:
         if not user:
-            user = User.get_by_email(email, status='active')
+            user = user_model.get_by_email(email, status='active')
         if not user:
             return None
 
@@ -40,17 +31,12 @@ def authenticate(email=None, user=None, password=None, token=None):
     return None
 
 
-def login(user, remember=False):
+def login(user, remember: bool = False) -> bool:
     """
     Аутентифицирует пользователя в текущей сессии
 
-    :rtype : bool
     :param user: Пользователь, для которого открывается сессия
-    :type user: User
     :param remember: Флаг запоминания пользователя после окончания сессии
-    :type remember: bool
-    :param force: Флаг принудительного открытия сессии
-    :type force: bool
     :return: Результат открытия аутентифицированной сессии
     """
     if not user.active:
@@ -70,7 +56,6 @@ def logout():
     """
     Заканчивает активную пользовательскую сессию
 
-    :rtype : bool
     :return: Результат завершения сессии
     """
     session.pop('user_id', None)
@@ -79,15 +64,23 @@ def logout():
     return True
 
 
-def get_user():
+def current_user(user_model):
     if has_request_context() and not hasattr(_request_ctx_stack.top, 'user'):
         user_id = session.get('user_id')
 
         if user_id:
-            user = user_loader(user_id)
+            user = user_model.where(state='active', id=user_id).first()
             _request_ctx_stack.top.user = user
 
     return getattr(_request_ctx_stack.top, 'user', None)
 
 
-current_user = LocalProxy(get_user)
+def login_required(model):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not current_user(model):
+                return {'errors': {"auth": 'Not authenticated'}}, 401
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
