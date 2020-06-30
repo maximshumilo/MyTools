@@ -65,7 +65,7 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
             filter_data = {field: kwargs.pop(field)}
             if not allow_deleted:
                 filter_data.update({f'{check_deleted_by}__ne': 'deleted'})
-            doc, errors = to_instance_nosql(filter_data) if type_db == 'no_sql' else to_instance_sql(filter_data)
+            doc, errors = to_instance_nosql(filter_data) if type_db == 'nosql' else to_instance_sql(filter_data)
             if errors:
                 return errors, 400
             if not doc:
