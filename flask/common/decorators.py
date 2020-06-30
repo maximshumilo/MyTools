@@ -36,37 +36,40 @@ def get_params(schema, **schema_params):
     return decorator
 
 
-def convert_to_instance(type_db, model, convert_by_field='id', allow_deleted=False, check_deleted_by='state'):
+def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_deleted_by='state'):
     """
     Convert to instance decorator
 
-    :param type_db: Type database (sql/nosql)
     :param model: Model
-    :param convert_by_field: Convert to instance by field in model
+    :param type_db: Type database (sql/nosql)
+    :param field: Convert to instance by field in model. Equal in url var name in urls.py. /api/examples/<var_name>/
     :param allow_deleted: Allow return deleted instance
     :param check_deleted_by: Check deleted by field
     :return: Instance or error
     """
     def to_instance_nosql(filter_data):
+        """Convert to instance from nosql db"""
         try:
             return model.objects.filter(**filter_data).first(), None
         except MongoValidationError:
-            return None, {'errors': {convert_by_field: 'Invalid id'}}
+            return None, {'errors': {field: 'Invalid data'}}
 
     def to_instance_sql(filter_data):
+        """Convert to instance from sql db"""
         return model.where(**filter_data).first()
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            filter_data = {convert_by_field: kwargs.pop(convert_by_field)}
+            """Main func"""
+            filter_data = {field: kwargs.pop(field)}
             if not allow_deleted:
                 filter_data.update({f'{check_deleted_by}__ne': 'deleted'})
             doc, errors = to_instance_nosql(filter_data) if type_db == 'no_sql' else to_instance_sql(filter_data)
             if errors:
                 return errors, 400
             if not doc:
-                return {'errors': {convert_by_field: 'Document not found'}}, 400
+                return {'errors': {field: 'Document not found'}}, 400
             args += (doc,)
             return func(*args, **kwargs)
         return wrapper

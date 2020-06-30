@@ -4,7 +4,8 @@ from marshmallow import ValidationError
 from mongoengine import ValidationError as MongoValidationError
 
 
-def convert_to_instance(model, type_db, field='id', many=False, return_field=None, error='Could not find document.'):
+def convert_to_instance(model, type_db, field='id', many=False, allow_deleted=False, check_deleted_by='state',
+                        return_field=None, error='Could not find document.'):
 
     def get_value_from_instances(instances):
         """Get field in instances"""
@@ -12,9 +13,15 @@ def convert_to_instance(model, type_db, field='id', many=False, return_field=Non
 
     def query(value, many_instances=False, **kwargs):
         """Query for sql/nosql database"""
+        # Generate filter data
         query_field = f"{field}__in" if many_instances else field
+        filter_data = {query_field: value}
+        if allow_deleted:
+            filter_data.update({f'{check_deleted_by}__ne': 'deleted'})
+
+        # Generate query
         if kwargs['type_db'] == 'sql':
-            return model.where(**{query_field: value})
+            return model.where(**filter_data)
         elif kwargs['type_db'] == 'nosql':
             return model.objects.filter(**{query_field: value})
         else:
