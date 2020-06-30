@@ -1,9 +1,5 @@
 import unittest
 
-from app import create_app, db
-from app.configs.configs import TestConfig
-from data_layer import User
-
 
 class CommonTestCase(unittest.TestCase):
     client = None
@@ -22,81 +18,108 @@ class CommonTestCase(unittest.TestCase):
 
         # Создание тестовых данных
         for doc in cls.test_docs:
-            db.session.add(doc)
-        db.session.commit()
+            doc.save()
 
     @classmethod
     def tearDownClass(cls):
-        """Удаление тестовых данных и завершение Flask приложения"""
+        """Delete test data and stop Flask app"""
         for doc in cls.test_docs:
             doc.delete()
-        db.session.commit()
 
         # Завершение Flask приложения
         cls.app_context.pop()
 
-    @classmethod
-    def auth(cls, email=None, password=None, create_test_user=False):
-        """ Функция авторизации """
-        auth_url = '/api/login/'
+    def auth(self, model, email=None, password=None, create_test_user=False, auth_url='/api/login/'):
+        """Auth func"""
+        auth_url = auth_url
 
         email = "unit@test.ru" if not email else email
+        first_name = "test_user" if not email else email
         password = "test_pass" if not password else password
 
-        user = User.get_by_email(email)
-        if create_test_user and not user:
-            User.create(email=email, state='active').set_password(password)
-            db.session.commit()
+        auth_user = model.get_by_email(email)
+        test_auth_user = None
+        if create_test_user and not auth_user:
+            test_auth_user = model.objects.create(email=email, first_name=first_name, state='active')
+            test_auth_user.set_password(password)
+            test_auth_user.save()
         json = {"email": email, "password": password}
-        response = cls.client.post(auth_url, json=json)
-        cls.authorized = True if response.status_code == 200 else False
-        if user:
-            cls.test_docs.append(user)
+        response = self.client.post(auth_url, json=json)
+        self.authorized = True if response.status_code == 200 else False
+        if test_auth_user:
+            self.test_docs.append(test_auth_user)
+
+    def invalid_doc_id(self, url, method, error_type, id_in='url', _id=None):
+        args = (url,)
+        params = {}
+        if id_in == 'data':
+            params['json'] = {"id": _id}
+        response = method(*args, **params)
+        json = self.check_response(response, 400)
+        self.assertIn('errors', json)
+        self.assertIn('id', json['errors'])
+        if error_type == 'not_found':
+            self.assertEqual(json['errors']['id'], 'Document not found')
+        elif error_type == 'invalid_id':
+            self.assertEqual(json['errors']['id'], 'Invalid id')
+
+    def create_success(self, url, model, field_name, data, check_field=True):
+        response = self.client.post(url, json=data)
+        json = self.check_response(response, 201)
+        model = model.objects.filter(id=json['id']).first()
+        self.assertNotEqual(model, None)
+        self.test_docs.append(model)
+        if check_field:
+            self.assertEqual(getattr(model, field_name), data[field_name])
+        return model
+
+    def create_failed(self, url, field_name, data, valid_type):
+        for invalid_param in self.generate_bad_data(valid_type=valid_type):
+            data[field_name] = invalid_param
+            response = self.client.post(url, json=data)
+            json = self.check_response(response, 400)
+            self.assertIn('errors', json)
+            self.assertIn(field_name, json['errors'])
 
     def put_success(self, url, edit_obj, edit_field, new_value, check_new_value=True):
-        """Успешное выполнение PUT запроса"""
-        data = {"id": edit_obj.id, edit_field: new_value}
+        """Success PUT request"""
+        data = {edit_field: new_value}
         response = self.client.put(url, json=data)
         json = self.check_response(response)
         self.assertIn('status', json)
         self.assertEqual('success', json['status'])
+        edit_obj.reload()
         if check_new_value:
             self.assertEqual(getattr(edit_obj, edit_field), new_value)
 
-    def put_failed(self, url, edit_obj, edit_field=None, bad_data=None, not_found_doc=False):
-        """Проверка PUT запроса с ошибкой"""
+    def put_failed(self, url, edit_field=None, bad_data=None):
+        """Check error PUT request"""
         if bad_data is None:
             bad_data = []
         for invalid_param in bad_data:
-            if not_found_doc:
-                edit_field = "id"
-                data = {edit_field: invalid_param}
-            else:
-                data = {"id": edit_obj.id, edit_field: invalid_param}
+            data = {edit_field: invalid_param}
             response = self.client.put(url, json=data)
             json = self.check_response(response, 400)
             self.assertIn('errors', json)
             self.assertIn(edit_field, json['errors'])
-            if not_found_doc:
-                self.assertEqual(['Не найден документ с таким идентификатором'], json['errors'][edit_field])
 
     def delete_success(self, url, delete_obj):
-        """Успешное выполнение DELETE запроса"""
+        """Success DELETE request"""
         response = self.client.delete(url, json={"id": delete_obj.id})
         json = self.check_response(response)
         self.assertIn('status', json)
         self.assertEqual('success', json['status'])
-        self.assertEqual(getattr(delete_obj, "state"), "deleted")
+        self.assertEqual(getattr(delete_obj, "state"), "hidden")
 
     def delete_failed(self, url, bad_data, not_found_doc=False):
-        """Проверка DELETE запроса с ошибкой"""
+        """Check error DELETE request"""
         for invalid_param in bad_data:
             response = self.client.delete(url, json={"id": invalid_param})
             json = self.check_response(response, 400)
             self.assertIn('errors', json)
             self.assertIn("id", json['errors'])
             if not_found_doc:
-                self.assertEqual(['Не найден документ с таким идентификатором'], json['errors']['id'])
+                self.assertEqual(['Неверный формат идентификатора'], json['errors']['id'])
 
     def check_response(self, response, status_code=200):
         self.assertEqual(response.status_code, status_code)
@@ -108,7 +131,7 @@ class CommonTestCase(unittest.TestCase):
             return None
 
     def validate(self, response_json, schema):
-        """ Валидация json ответа """
+        """Validate json response"""
         self.assertIsNotNone(response_json)
         validation_errors = schema(unknown='exclude').validate(response_json)
         if validation_errors:
@@ -122,7 +145,8 @@ class CommonTestCase(unittest.TestCase):
             float: [None, True, "", {}, [], "string", "string1", {"key": "value"}, ["item1"], [1, 2]],
             str: [None, True, {}, [], 1, {"key": "value"}, ["item1"], [1, 2]],
             bool: [None, "", {}, [], 123, "string", "string1", {"key": "value"}, ["item1"], [1, 2], 1.45],
-            list: [None, "", {}, 123, "string", "string1", {"key": "value"}, 1.45]
+            list: [None, "", {}, 123, "string", "string1", {"key": "value"}, 1.45],
+            "date": [None, True, {}, [], 1, "string", {"key": "value"}, ["item1"], [1, 2], '2020-01-01 10:10'],
         }
         bad_data = invalid_data_map[valid_type]
 
