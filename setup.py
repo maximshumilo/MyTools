@@ -9,5 +9,6 @@ setup(
     license='',
     author='Maxim Shumilo',
     author_email='shumilo.mk@gmail.com',
-    description='My development tools'
+    description='My development tools',
+    install_requires=['bs4', 'mongoengine', 'flask']
 )
