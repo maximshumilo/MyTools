@@ -56,7 +56,7 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
 
     def to_instance_sql(filter_data):
         """Convert to instance from sql db"""
-        return model.where(**filter_data).first()
+        return model.where(**filter_data).first(), None
 
     def decorator(func):
         @wraps(func)

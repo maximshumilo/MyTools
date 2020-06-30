@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='maximshumilo_tools',
-    version='0.1.0',
+    version='0.1.1',
     packages=['ms_tools', 'ms_tools.flask', 'ms_tools.flask.sql', 'ms_tools.flask.mongo', 'ms_tools.flask.common',
               'ms_tools.common'],
     url='https://t.me/MaximShumilo',
