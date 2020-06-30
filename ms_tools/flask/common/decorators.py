@@ -3,7 +3,7 @@ from functools import wraps
 from marshmallow import ValidationError
 from mongoengine import ValidationError as MongoValidationError
 
-from flask import request
+from ms_tools.flask import request
 
 
 def get_params(schema, **schema_params):

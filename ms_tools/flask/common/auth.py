@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import _request_ctx_stack, has_request_context, session
+from ms_tools.flask import _request_ctx_stack, has_request_context, session
 
 
 class UserSession:
