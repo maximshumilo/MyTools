@@ -1,7 +1,6 @@
 from functools import wraps
 
 from marshmallow import ValidationError
-from mongoengine import ValidationError as MongoValidationError
 
 from flask import request
 
@@ -49,6 +48,7 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
     """
     def to_instance_nosql(filter_data):
         """Convert to instance from nosql db"""
+        from mongoengine import ValidationError as MongoValidationError
         try:
             return model.objects.filter(**filter_data).first(), None
         except MongoValidationError:
