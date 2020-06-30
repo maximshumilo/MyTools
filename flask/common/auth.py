@@ -1,3 +1,5 @@
+from functools import wraps
+
 from flask import _request_ctx_stack, has_request_context, session
 
 
@@ -83,3 +85,13 @@ class UserSession:
                 _request_ctx_stack.top.user = user
 
         return getattr(_request_ctx_stack.top, 'user', None)
+
+    def login_required(self):
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                if not self.current_user():
+                    return {'errors': {"auth": 'Not authenticated'}}, 401
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator

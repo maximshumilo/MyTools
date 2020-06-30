@@ -4,22 +4,33 @@ from marshmallow import ValidationError
 from mongoengine import ValidationError as MongoValidationError
 
 
-def convert_to_instance(model, field='id', many=False, return_field=None, error='Could not find document.'):
+def convert_to_instance(model, type_db, field='id', many=False, return_field=None, error='Could not find document.'):
+
     def get_value_from_instances(instances):
         """Get field in instances"""
         return [getattr(doc, field) for doc in instances]
 
+    def query(value, many_instances=False, **kwargs):
+        """Query for sql/nosql database"""
+        query_field = f"{field}__in" if many_instances else field
+        if kwargs['type_db'] == 'sql':
+            return model.where(**{query_field: value})
+        elif kwargs['type_db'] == 'nosql':
+            return model.objects.filter(**{query_field: value})
+        else:
+            ValidationError(error, field_name=field)
+
     def convert_one(value, **kwargs):
         """Convert to one instance"""
-        instance = model.objects.filter(**{field: value}).first()
+        instance = query(value, **kwargs).first()
         return get_value_from_instances([instance])[0] if kwargs.get('return_field') else instance
 
     def convert_many(value, **kwargs):
         """Convert to many instances"""
         values = value.split(',')
         values = list(set(values))
-        items = model.objects.filter(**{f'{field}__in': values}).all()
-        return get_value_from_instances(items) if kwargs.get('return_field') else items
+        instances = query(values, many_instances=True, **kwargs).all()
+        return get_value_from_instances(instances) if kwargs.get('return_field') else instances
 
     def to_instance(*args, **kwargs):
         """
@@ -35,4 +46,5 @@ def convert_to_instance(model, field='id', many=False, return_field=None, error=
             raise ValidationError(error, field_name=field)
         return result
 
-    return partial(to_instance, model=model, field=field, many=many, error=error, return_field=return_field)
+    return partial(to_instance, model=model, type_db=type_db, field=field,
+                   many=many, error=error, return_field=return_field)
