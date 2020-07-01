@@ -1,3 +1,30 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+# Table of Contents
+
+- [My tools for work](#my-tools-for-work)
+  - [Getting Started](#getting-started)
+- [common/](#common)
+  - [avito_api.py](#avito_apipy)
+    - [Examples](#examples)
+  - [tg_event_messeger.py](#tg_event_messegerpy)
+    - [Examples](#examples-1)
+  - [ya_bucket.py](#ya_bucketpy)
+    - [Examples](#examples-2)
+- [flask/](#flask)
+  - [common/](#common-1)
+    - [auth.py](#authpy)
+    - [decorators.py](#decoratorspy)
+    - [test_case.py](#test_casepy)
+  - [mongo/](#mongo)
+    - [utils.py](#utilspy)
+  - [sql/](#sql)
+    - [marshmallow.py](#marshmallowpy)
+    - [utils.py](#utilspy-1)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 # My tools for work
 Description
 
