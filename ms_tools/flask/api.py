@@ -69,7 +69,7 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
             if errors:
                 return errors, 400
             if not doc:
-                return {'errors': {field: 'Document not found'}}, 400
+                return {'errors': {field: 'Could not find document.'}}, 400
             args += (doc,)
             return func(*args, **kwargs)
         return wrapper

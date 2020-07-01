@@ -8,7 +8,8 @@ class UserSession:
 
     def __init__(self, user_model, type_db):
         """
-
+        :param user_model Модель пользователя, для аунтификации
+        :param type_db Тип базы данных (sql/nosql)
         """
         self.User = user_model
         self.type_db = type_db

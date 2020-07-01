@@ -6,15 +6,13 @@ with open("README.rst", "r") as fh:
 
 setup(
     name='maximshumilo_tools',
-    version='0.1.4',
-    packages=['ms_tools', 'ms_tools.flask', 'ms_tools.flask.sql', 'ms_tools.flask.mongo', 'ms_tools.flask.common',
-              'ms_tools.common'],
+    version='0.1.5',
+    packages=['ms_tools', 'ms_tools.flask', 'ms_tools.flask.sql', 'ms_tools.flask.mongo', 'ms_tools.common'],
     url='https://t.me/MaximShumilo',
     license='',
     author='Maxim Shumilo',
     author_email='shumilo.mk@gmail.com',
-    install_requires=['flask', 'requests', 'marshmallow', 'mongoengine'],
+    install_requires=['flask', 'requests', 'marshmallow', 'mongoengine', 'boto3'],
     include_package_data=True,
     long_description=long_description,
-
 )
