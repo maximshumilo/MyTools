@@ -8,7 +8,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='maximshumilo_tools',
-    version='0.1.2',
+    version='0.1.3',
     packages=['ms_tools', 'ms_tools.flask', 'ms_tools.flask.sql', 'ms_tools.flask.mongo', 'ms_tools.flask.common',
               'ms_tools.common'],
     url='https://t.me/MaximShumilo',
