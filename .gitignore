@@ -1,2 +1,4 @@
 venv/
 .idea/
+/dist/
+/maximshumilo_tools.egg-info/
