@@ -42,9 +42,8 @@ def convert_to_instance(model, type_db, field='id', many=False, allow_deleted=Fa
     def to_instance(*args, **kwargs):
         """
         Main func
-
         """
-        value = args[0]
+        value = str(args[0])
         try:
             result = convert_many(value, **kwargs) if many else convert_one(value, **kwargs)
         except MongoValidationError:
