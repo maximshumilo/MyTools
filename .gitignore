@@ -3,5 +3,4 @@ venv/
 /dist/
 /maximshumilo_tools.egg-info/
 
-setup.py
 setup.cfg
