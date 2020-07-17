@@ -3,9 +3,7 @@ import requests
 
 class SberbankAPI:
 
-    """
-    Класс для работы с API платежного шлюза Сбербанка
-    """
+    """Класс для работы с API платежного шлюза Сбербанка"""
 
     def __init__(self, username, password, api_url, redirect_success, redirect_fail):
         """

@@ -3,7 +3,15 @@ import requests
 
 class AvitoAPI:
 
+    """Класс для работы с API avito.ru"""
+
     def __init__(self, client_id, client_secret, user_id=None):
+        """
+        Инициализация класса
+
+        :param client_id Идентификатор магазина
+        :param client_secret Секретный ключ магазина
+        """
         self.client_id = client_id
         self.client_secret = client_secret
         self.user_id = user_id if user_id else None
