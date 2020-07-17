@@ -3,14 +3,29 @@ import requests
 
 class EventMessenger:
 
-    def __init__(self, url, secret=None, host=None, chat_id=None):
+    """
+    Класс для отправки событий в чат ТГ
+    """
+
+    def __init__(self, url: str, secret: str = None, host: str = None, chat_id: str = None):
+        """
+        :param url Ссылка на облачную функцию
+        :param secret Секретный ключ
+        :param host Хост
+        :param chat_id Идентификатор чата
+        """
         self.url = url
         self.secret = secret
         self.host = host
         self.chat_id = chat_id
         super().__init__()
 
-    def send_message(self, message):
+    def send_message(self, message: str):
+        """
+        Отправка сообщения
+
+        :param message Тело сообщения
+        """
         json = {
             'secret': self.secret,
             'chat_id': self.chat_id,
