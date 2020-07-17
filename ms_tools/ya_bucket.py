@@ -6,18 +6,22 @@ logger = logging.getLogger(__name__)
 
 class YandexBucket:
 
-    authorized = False
+    """Класс для работы с облычным хранилищем YandexBucket"""
 
-    def __init__(self, id_key, secret_key):
+    def __init__(self, id_key: str, secret_key: str):
+        """
+        Инициализация класса
+
+        :param id_key Идентификатор
+        :param secret_key Секретный ключ
+        """
+
         if not id_key or not secret_key:
             logger.error('Не указаны данные для входа в сервисный аккаунт Yandex Cloud.')
-            return
-
         session = boto3.session.Session()
         self.bucket_client = session.client(service_name='s3', endpoint_url='https://storage.yandexcloud.net',
                                             aws_access_key_id=id_key,
                                             aws_secret_access_key=secret_key)
-
         self.authorized = self.check_auth()
 
     def check_auth(self):
@@ -27,11 +31,17 @@ class YandexBucket:
         except Exception:
             logger.error('Ошибка авторизации в сервисный аккаунт Yandex Cloud.')
             return False
-        else:
-            return True
+        return True
 
-    def get_objects(self, bucket_name, previous_element='', limit=1000):
-        """Получить список объектов в бакете"""
+    def get_objects(self, bucket_name: str, previous_element: str = '', limit: int = 1000) -> list:
+        """
+        Получить список объектов в бакете
+
+        :param bucket_name Имя бакета
+        :param previous_element:
+        :param limit: Лимит выдачи (По умолчанию 1000)
+        :return Список объектов бакета
+        """
         try:
             result = self.bucket_client.list_objects(Bucket=bucket_name,
                                                      Marker=previous_element, MaxKeys=limit).get('Contents')
@@ -39,9 +49,8 @@ class YandexBucket:
             self.authorized = self.check_auth()
             if self.authorized:
                 logger.error('Ошибка при получении списка объектов.')
-            return None
-        else:
-            return [] if result is None else result
+            return []
+        return [] if result is None else result
 
     def remove_objects(self, bucket_name, data):
         """
