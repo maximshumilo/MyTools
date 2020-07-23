@@ -1,9 +1,17 @@
 import requests
 
 
-class SberbankAPI:
+__all__ = ["SberbankAPI"]
 
-    """Класс для работы с API платежного шлюза Сбербанка"""
+
+class SberbankAPI:
+    """
+    Класс для работы с api платежного шлюза Сбербанка
+
+    Включает в себя методы:
+        1. register_order - Регистрация зазказа
+        2. get_status_order - Получение статуса об оплате
+    """
 
     def __init__(self, username, password, api_url, redirect_success, redirect_fail):
         """

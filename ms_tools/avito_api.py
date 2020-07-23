@@ -17,7 +17,7 @@ class AvitoAPI:
         self.user_id = user_id if user_id else None
 
     def get_access_token(self):
-        """ Получение токена в авито """
+        """Получение токена в авито"""
         url_get_token = f"https://api.avito.ru/token/?grant_type=client_credentials&" \
                         f"client_id={self.client_id}&client_secret={self.client_secret}"
         r = requests.get(url=url_get_token)
@@ -28,7 +28,7 @@ class AvitoAPI:
         return r.json()
 
     def get_last_report(self):
-        """ Последний отчет по выгрузке """
+        """Последний отчет по выгрузке"""
         if not self.user_id:
             return {'errors': {'api_avito': 'Не указан user_id'}}
         headers = {"Authorization": f"Bearer {self.access_token}"}
@@ -37,7 +37,7 @@ class AvitoAPI:
         return r.json()
 
     def get_reports(self, per_page=10, page=1):
-        """ Получение всех отчетов по выгрузкам """
+        """Получение всех отчетов по выгрузкам"""
         if not self.user_id:
             return {'errors': {'api_avito': 'Не указан user_id'}}
         url_reports = f"https://api.avito.ru/autoload/v1/accounts/{self.user_id}/reports/?per_page={per_page}&page={page}"
