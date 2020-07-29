@@ -1,6 +1,7 @@
 from functools import wraps
 
 from flask import _request_ctx_stack, has_request_context, session
+from werkzeug.local import LocalProxy
 
 
 class UserSession:
@@ -74,7 +75,8 @@ class UserSession:
         _request_ctx_stack.top.user = None
         return True
 
-    def current_user(self):
+    def get_current_user(self):
+        """Получает текущего пользователя"""
         if has_request_context() and not hasattr(_request_ctx_stack.top, 'user'):
             user_id = session.get('user_id')
             if user_id:
@@ -87,11 +89,18 @@ class UserSession:
 
         return getattr(_request_ctx_stack.top, 'user', None)
 
-    def login_required(self):
+    def login_required(self, local_proxy: bool = False):
+        """
+        Декторатор требующий обязательной авторизации
+
+        :param local_proxy
+        :return Результат выполнения декорируемой функции
+        """
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                if not self.current_user():
+                user = LocalProxy(self.get_current_user()) if local_proxy else self.get_current_user()
+                if not user:
                     return {'errors': {"auth": 'Not authenticated'}}, 401
                 return func(*args, **kwargs)
             return wrapper
