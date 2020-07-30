@@ -99,7 +99,7 @@ class UserSession:
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                user = LocalProxy(self.get_current_user()) if local_proxy else self.get_current_user()
+                user = LocalProxy(self.get_current_user) if local_proxy else self.get_current_user()
                 if not user:
                     return {'errors': {"auth": 'Not authenticated'}}, 401
                 return func(*args, **kwargs)
