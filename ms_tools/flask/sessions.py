@@ -1,19 +1,20 @@
 from functools import wraps
 
 from flask import _request_ctx_stack, has_request_context, session
-from werkzeug.local import LocalProxy
 
 
 class UserSession:
     User = None
 
-    def __init__(self, user_model, type_db):
+    def __init__(self, user_model, type_db: str, dev_mode: bool = False):
         """
         :param user_model Модель пользователя, для аунтификации
         :param type_db Тип базы данных (sql/nosql)
+        :param dev_mode Режим разработки. Флаг True/False
         """
         self.User = user_model
         self.type_db = type_db
+        self.dev = dev_mode
 
     @staticmethod
     def authenticate(user_instance=None, email: str = None, password: str = None, token: str = None):
@@ -78,16 +79,21 @@ class UserSession:
     def get_current_user(self):
         """Получает текущего пользователя"""
         if has_request_context() and not hasattr(_request_ctx_stack.top, 'user'):
-            user_id = session.get('user_id')
-            if user_id:
-                user = None
+            if self.dev:
+                email = _request_ctx_stack.top.request.authorization.username
+                token = _request_ctx_stack.top.request.authorization.password
+
+                if (user := self.User.get_by_email(email)) and user.check_token(token):
+                    _request_ctx_stack.top.user = user
+
+            elif user_id := session.get('user_id'):
                 if self.type_db == 'nosql':
                     user = self.User.objects.filter(state='active', id=user_id).first()
                 elif self.type_db == 'sql':
                     user = self.User.where(state='active', id=user_id).first()
                 _request_ctx_stack.top.user = user
 
-        return getattr(_request_ctx_stack.top, 'user', None)
+            return getattr(_request_ctx_stack.top, 'user', None)
 
     def login_required(self, local_proxy: bool = False):
         """
@@ -96,11 +102,11 @@ class UserSession:
         :param local_proxy
         :return Результат выполнения декорируемой функции
         """
+
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                user = LocalProxy(self.get_current_user) if local_proxy else self.get_current_user()
-                if not user:
+                if not self.get_current_user():
                     return {'errors': {"auth": 'Not authenticated'}}, 401
                 return func(*args, **kwargs)
             return wrapper
