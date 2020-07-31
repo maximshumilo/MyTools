@@ -79,19 +79,19 @@ class UserSession:
     def get_current_user(self):
         """Получает текущего пользователя"""
         if has_request_context() and not hasattr(_request_ctx_stack.top, 'user'):
-            if self.dev:
+            if user_id := session.get('user_id'):
+                if self.type_db == 'nosql':
+                    user = self.User.objects.filter(state='active', id=user_id).first()
+                    _request_ctx_stack.top.user = user
+                elif self.type_db == 'sql':
+                    user = self.User.where(state='active', id=user_id).first()
+                    _request_ctx_stack.top.user = user
+            elif self.dev:
                 email = _request_ctx_stack.top.request.authorization.username
                 token = _request_ctx_stack.top.request.authorization.password
 
                 if (user := self.User.get_by_email(email)) and user.check_token(token):
                     _request_ctx_stack.top.user = user
-
-            elif user_id := session.get('user_id'):
-                if self.type_db == 'nosql':
-                    user = self.User.objects.filter(state='active', id=user_id).first()
-                elif self.type_db == 'sql':
-                    user = self.User.where(state='active', id=user_id).first()
-                _request_ctx_stack.top.user = user
 
             return getattr(_request_ctx_stack.top, 'user', None)
 
