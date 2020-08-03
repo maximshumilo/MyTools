@@ -86,7 +86,8 @@ class UserSession:
                 elif self.type_db == 'sql':
                     user = self.User.where(state='active', id=user_id).first()
                     _request_ctx_stack.top.user = user
-            elif self.dev:
+            elif self.dev and hasattr(_request_ctx_stack.top.request.authorization, 'username') \
+                    and hasattr(_request_ctx_stack.top.request.authorization, 'password'):
                 email = _request_ctx_stack.top.request.authorization.username
                 token = _request_ctx_stack.top.request.authorization.password
 
@@ -108,6 +109,26 @@ class UserSession:
             def wrapper(*args, **kwargs):
                 if not self.get_current_user():
                     return {'errors': {"auth": 'Not authenticated'}}, 401
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
+
+    def need_role(self, role_keys: list, field='role'):
+        """
+        Декоратор, допускает выполнение метода для пользователя с определенной ролью
+
+        :param role_keys Список допустимых ролей
+        :param field Поле в модели, в которой указана роль. (По умолчанию - role)
+        :return Результат выполнения декорируемой функции
+        """
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                current_user = self.get_current_user()
+                if not current_user:
+                    return {"errors": {"auth": "No authentication provided"}}, 401
+                if getattr(current_user, field) not in role_keys:
+                    return {"errors": {"role": "insufficient rights for {} role".format(current_user.role)}}, 423
                 return func(*args, **kwargs)
             return wrapper
         return decorator
