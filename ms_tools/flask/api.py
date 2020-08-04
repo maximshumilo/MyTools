@@ -13,6 +13,7 @@ def get_params(schema, **schema_params):
     :param schema_params: exclude=[], only=[], partial=True/False, unknown='exclude'
     :return: request params
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -31,11 +32,20 @@ def get_params(schema, **schema_params):
                 return {'errors': exc.messages}, 400
             args += params
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
-def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_deleted_by='state'):
+def convert_to_instance(
+        model,
+        type_db: str,
+        field: str = 'id',
+        allow_deleted: bool = False,
+        check_deleted_by: str = 'state',
+        optional_filter: dict = None,
+        error: str = 'Could not find document.'):
     """
     Convert to instance decorator
 
@@ -44,8 +54,13 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
     :param field: Convert to instance by field in model. Equal in url var name in urls.py. /api/examples/<var_name>/
     :param allow_deleted: Allow return deleted instance
     :param check_deleted_by: Check deleted by field
-    :return: Instance or error
+    :param optional_filter Optional filter
+    :param error Error message, by not found document
+    :return Instance or error
     """
+    if optional_filter is None:
+        optional_filter = {}
+
     def to_instance_nosql(filter_data):
         """Convert to instance from nosql db"""
         from mongoengine import ValidationError as MongoValidationError
@@ -62,14 +77,14 @@ def convert_to_instance(model, type_db, field='id', allow_deleted=False, check_d
         @wraps(func)
         def wrapper(*args, **kwargs):
             """Main func"""
-            filter_data = {field: kwargs.pop(field)}
+            filter_data = {field: kwargs.pop(field), **optional_filter}
             if not allow_deleted:
                 filter_data.update({f'{check_deleted_by}__ne': 'deleted'})
             doc, errors = to_instance_nosql(filter_data) if type_db == 'nosql' else to_instance_sql(filter_data)
             if errors:
                 return errors, 400
             if not doc:
-                return {'errors': {field: 'Could not find document.'}}, 400
+                return {'errors': {field: error}}, 400
             args += (doc,)
             return func(*args, **kwargs)
         return wrapper

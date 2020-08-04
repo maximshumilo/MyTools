@@ -15,6 +15,8 @@ def convert_to_instance(
         return_field: str = None,
         error: str = 'Could not find document.'):
     """
+    Convert to instance
+
     :param model The model to which you want to convert
     :param type_db Database type (sql/nosql)
     :param field The field that will be converted
