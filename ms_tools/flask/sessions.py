@@ -128,7 +128,7 @@ class UserSession:
                 if not current_user:
                     return {"errors": {"auth": "No authentication provided"}}, 401
                 if getattr(current_user, field) not in role_keys:
-                    return {"errors": {"role": "insufficient rights for {} role".format(current_user.role)}}, 423
+                    return {"errors": {"role": "insufficient rights for {} role".format(current_user.role)}}, 403
                 return func(*args, **kwargs)
             return wrapper
         return decorator
