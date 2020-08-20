@@ -86,7 +86,7 @@ class BucketClient(ObjectStorage):
 
         :yield List of dictionaries containing information about objects
 
-                Example: [
+                Example response: [
                     {
                         'Key': 'banner_1.jpg',
                         'LastModified': datetime.datetime(2020, 6, 12, 12, 37, 2, 686000, tzinfo=tzutc()),
@@ -118,12 +118,12 @@ class BucketClient(ObjectStorage):
         :param limit Response limit
         """
         list_objects = []
-        logger.info(f'Getting list all objects from bucket: {self.bucket_name}.')
+        logger.debug(f'Getting list all objects from bucket: {self.bucket_name}. Path: {path}')
         for result in self.get_list_objects_generator(path):
             list_objects += result
             if limit and len(result) > limit:
                 break
-        logger.info(f'Received a list with information about {len(list_objects[:limit])} files.')
+        logger.debug(f'Received a list with information about {len(list_objects[:limit])} files.')
         return list_objects[:limit]
 
     def get_bytes_object(self, object_name: str) -> Optional[bytes]:
@@ -133,14 +133,14 @@ class BucketClient(ObjectStorage):
         :param object_name Object name in bucket
         :return Object format bytes or None
         """
-        logger.info(f'Try getting object: {object_name}')
+        logger.debug(f'Try getting object: {object_name}')
         try:
             object_content = self.s3.get_object(Bucket=self.bucket_name, Key=object_name)
         except ClientError as exc:
             return self.__validate_client_error(exc)
         if object_content['ContentType'] == 'application/x-directory':
             return None
-        logger.info('File getting successfully.')
+        logger.debug('File getting successfully.')
         return object_content['Body'].read()
 
     def upload_file(self, file_name: str, file_content: bytes):
@@ -150,13 +150,42 @@ class BucketClient(ObjectStorage):
         :param file_name File name
         :param file_content File content
         """
-        logger.info(f'Try upload file to path: {file_name}')
+        logger.debug(f'Try upload file to path: {file_name}')
         try:
             return self.s3.put_object(Bucket=self.bucket_name, Key=file_name, Body=file_content)
         except (ClientError, ParamValidationError) as exc:
             if exc.__class__.__name__ == 'ParamValidationError':
                 return logger.error(f'{exc.args[0]}')
             return self.__validate_client_error(exc)
+
+    def move_objects(self, out_path: str, objects_list: Optional[List[dict]], in_path: Optional[str]):
+        """
+        Move objects.
+
+        :param out_path: Path to move files to
+        :param objects_list: List of objects to move. (Received by the `self.get_all_list()` method)
+        :param in_path: Path to move files from
+        :return None
+        """
+        def move_objects_list(objects):
+            """
+            Move objects list
+
+            :param objects List of objects to move. (Received by the `self.get_all_list()` method)
+            :return None
+            """
+            for k, object_data in enumerate(objects):
+                original_object = object_data.get('Key')
+                file_name = original_object.split('/')[-1]
+                self.upload_file(f"{out_path}/{file_name}", self.get_bytes_object(original_object))
+                self.remove_objects([original_object])
+                logger.info(f"Moved {k + 1}/{len(objects)}")
+
+        objects_list = [] if objects_list is None else objects_list
+        if in_path:
+            objects_list += self.get_list_all_objects(path=in_path)
+        objects_list = list(set(objects_list))
+        move_objects_list(objects_list)
 
     def remove_objects(self, remove_objects: list) -> Optional[bool]:
         """
@@ -168,12 +197,12 @@ class BucketClient(ObjectStorage):
         :return Execution result. True/False
         """
         objects = [{'Key': obj} for obj in remove_objects]
-        logger.info(f'Try deleting objects: {remove_objects}')
+        logger.debug(f'Try deleting objects: {remove_objects}')
         try:
             self.s3.delete_objects(Bucket=self.bucket_name, Delete={'Objects': objects})
         except ClientError as exc:
             return self.__validate_client_error(exc)
-        logger.info('Deleted successfully.')
+        logger.debug('Deleted successfully.')
         return True
 
     @staticmethod
