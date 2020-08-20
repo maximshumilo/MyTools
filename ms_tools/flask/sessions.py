@@ -94,7 +94,7 @@ class UserSession:
                 if (user := self.User.get_by_email(email)) and user.check_token(token):
                     _request_ctx_stack.top.user = user
 
-            return getattr(_request_ctx_stack.top, 'user', None)
+        return getattr(_request_ctx_stack.top, 'user', None)
 
     def login_required(self, local_proxy: bool = False):
         """

@@ -1,11 +1,10 @@
 import logging
-from ast import Bytes
 from typing import List, Optional
 
 import boto3
 from botocore.exceptions import ClientError, ParamValidationError
 
-__all__ = ["ObjectStorage"]
+__all__ = ["ObjectStorage", "BucketClient"]
 
 
 date_format = '%Y-%m-%d %H:%M:%S'
@@ -78,10 +77,11 @@ class BucketClient(ObjectStorage):
         super().__init__(key_id, secret_key)
         self.bucket_name = bucket_name
 
-    def get_list_objects_generator(self, start_after: str = '') -> List[dict]:
+    def get_list_objects_generator(self, path: str = '', start_after: str = '') -> List[dict]:
         """
         Get list objects from bucket. (Generator)
 
+        :param path Path
         :param start_after Return all elements after the specified value
 
         :yield List of dictionaries containing information about objects
@@ -102,7 +102,7 @@ class BucketClient(ObjectStorage):
         retry = True
         while retry:
             try:
-                res = self.s3.list_objects_v2(Bucket=self.bucket_name, StartAfter=start_after)
+                res = self.s3.list_objects_v2(Bucket=self.bucket_name, StartAfter=start_after, Prefix=path)
             except ClientError as exc:
                 self.__validate_client_error(exc)
                 break
@@ -110,22 +110,23 @@ class BucketClient(ObjectStorage):
             start_after = res.get('Contents', [])[-1].get('Key') if retry else ''
             yield res.get('Contents', [])
 
-    def get_list_all_objects(self, limit: int = None) -> List[dict]:
+    def get_list_all_objects(self, path: str = '', limit: int = None) -> List[dict]:
         """
         Get list all objects from bucket
 
+        :param path Path
         :param limit Response limit
         """
         list_objects = []
         logger.info(f'Getting list all objects from bucket: {self.bucket_name}.')
-        for result in self.get_list_objects_generator():
+        for result in self.get_list_objects_generator(path):
             list_objects += result
             if limit and len(result) > limit:
                 break
         logger.info(f'Received a list with information about {len(list_objects[:limit])} files.')
         return list_objects[:limit]
 
-    def get_bytes_object(self, object_name: str) -> Optional[Bytes]:
+    def get_bytes_object(self, object_name: str) -> Optional[bytes]:
         """
         Get bytes object.
 
@@ -134,14 +135,15 @@ class BucketClient(ObjectStorage):
         """
         logger.info(f'Try getting object: {object_name}')
         try:
-            object_content = self.s3.get_object(Bucket=self.bucket_name, Key=object_name)['Body'].read()
+            object_content = self.s3.get_object(Bucket=self.bucket_name, Key=object_name)
         except ClientError as exc:
             return self.__validate_client_error(exc)
-            # logger.error(f"Error getting the file: {object_name}")
+        if object_content['ContentType'] == 'application/x-directory':
+            return None
         logger.info('File getting successfully.')
-        return object_content
+        return object_content['Body'].read()
 
-    def upload_file(self, file_name: str, file_content: Bytes):
+    def upload_file(self, file_name: str, file_content: bytes):
         """
         Upload file to bucket
 
@@ -189,12 +191,3 @@ class BucketClient(ObjectStorage):
 
         logger.error(f"{error_msg}. {message_code}/HTTP {status_code}.")
 
-
-if __name__ == '__main__':
-    a = ObjectStorage.get_bucket_client('jm6PBtBW6SgowybcIyMF',
-                                        'pK5DTEPJsAE-Zo8z5LMGUxo6a1FEClkIekxbA9EZ', 'betrendy-dev')
-    result_get = a.get_list_all_objects()
-    object_bytes = a.get_bytes_object('sss')
-
-    a.upload_file('test_upload.jpg', object_bytes)
-    b = 1
