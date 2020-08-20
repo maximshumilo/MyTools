@@ -190,4 +190,3 @@ class BucketClient(ObjectStorage):
         error_msg = operation_map.get(client_error.operation_name, 'Unknown error')
 
         logger.error(f"{error_msg}. {message_code}/HTTP {status_code}.")
-
