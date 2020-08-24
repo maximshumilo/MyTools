@@ -94,7 +94,7 @@ class BucketClient(ObjectStorage):
         :param path Path
         :param start_after Return all elements after the specified value
 
-        :yield List of dictionaries containing information about objects
+        :return List of dictionaries containing information about objects
 
                 Example response: [
                     {
