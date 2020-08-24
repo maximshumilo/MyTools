@@ -1,16 +1,11 @@
-import logging
 from typing import List, Optional
 
 import boto3
 from botocore.exceptions import ClientError, ParamValidationError
 
+from . import logger
+
 __all__ = ["ObjectStorage", "BucketClient"]
-
-
-date_format = '%Y-%m-%d %H:%M:%S'
-log_format = '[%(asctime)s %(levelname)s] %(message)s'
-logging.basicConfig(level=logging.INFO, format=log_format, datefmt=date_format)
-logger = logging.getLogger(__name__)
 
 
 class ObjectStorage:
@@ -158,7 +153,7 @@ class BucketClient(ObjectStorage):
                 return logger.error(f'{exc.args[0]}')
             return self.__validate_client_error(exc)
 
-    def move_objects(self, out_path: str, objects_list: Optional[List[dict]], in_path: Optional[str]):
+    def move_objects(self, out_path: str, objects_list: List[dict] = None, in_path: str = None):
         """
         Move objects.
 
