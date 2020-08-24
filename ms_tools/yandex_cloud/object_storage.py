@@ -71,6 +71,7 @@ class BucketClient(ObjectStorage):
        - get_bytes_object() - Get object bytes format
        - upload_file() - Upload file to bucket
        - move_objects() - Move objects
+       - remove_objects() - Remove objects in bucket
     """
 
     bucket_name = None
