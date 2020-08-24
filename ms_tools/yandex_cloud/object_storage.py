@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-import boto3
+from boto3.session import Session
 from botocore.exceptions import ClientError, ParamValidationError
 
 from . import logger
@@ -22,7 +22,7 @@ class ObjectStorage:
         self.KEY_ID = key_id
         self.SECRET_KEY = secret_key
 
-        self.s3 = boto3.session.Session().client(service_name='s3', aws_access_key_id=key_id,
+        self.s3 = Session().client(service_name='s3', aws_access_key_id=key_id,
                                                  endpoint_url='https://storage.yandexcloud.net',
                                                  aws_secret_access_key=secret_key)
         logger.info("Start authorization ...")
