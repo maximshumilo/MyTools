@@ -1,3 +1,5 @@
+# Library for managing the ObjectStorage service in YandexCloud.
+
 from typing import List, Optional
 
 from boto3.session import Session
@@ -5,13 +7,16 @@ from botocore.exceptions import ClientError, ParamValidationError
 
 from . import logger
 
-
 __all__ = ["ObjectStorage", "BucketClient"]
 
 
 class ObjectStorage:
     """
-    Library for managing the ObjectStorage service.
+    Managing the Buckets in ObjectStorage.
+
+    Instance methods short description:
+        - get_bucket_client() - Initial BucketClient instance.
+        - check_auth() - Check authorization state.
     """
 
     def __init__(self, key_id: str, secret_key: str):
@@ -63,7 +68,7 @@ class ObjectStorage:
 class BucketClient(ObjectStorage):
 
     """
-    Managing the Bucket in ObjectStorage.
+    Managing the objects in Bucket.
 
     Instance methods short description:
        - get_list_all_objects() - Get list all objects from bucket
