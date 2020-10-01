@@ -13,6 +13,7 @@ def convert_to_instance(
         allow_deleted: bool = True,
         check_deleted_by: str = 'state',
         return_field: str = None,
+        assert_every=True,
         error: str = 'Could not find document.'):
     """
     Convert to instance
@@ -24,7 +25,9 @@ def convert_to_instance(
     :param allow_deleted Allowed return deleted instances flag
     :param check_deleted_by Filed, by check deleted instances. (If allow_deleted=False)
     :param return_field Return value field in current instance
+    :param assert_every Check every doc
     :param error Error message, by not found document
+
     :return Instance or value field in instance or errors
 
         Example:
@@ -66,9 +69,17 @@ def convert_to_instance(
 
     def convert_many(value, **kwargs):
         """Convert to many instances"""
-        values = value.split(',')
+        if value.startswith('[') and value.endswith(']'):
+            values = value[2:-2].replace("'", "").split(',')
+        elif isinstance(value, str):
+            values = value.split(',')
+        else:
+            raise ValidationError(message='Invalid type data', field_name=field)
         values = list(set(values))
-        return query(values, many_instances=True, **kwargs).all()
+        result = query(values, many_instances=True, **kwargs).all()
+        if assert_every and len(result) != len(values):
+            raise ValidationError(message='Not all documents were found', field_name=field)
+        return result
 
     def to_instance(*args, **kwargs):
         """Main func"""
@@ -83,4 +94,3 @@ def convert_to_instance(
 
     return partial(to_instance, model=model, type_db=type_db, field=field,
                    many=many, error=error, return_field=return_field)
-
