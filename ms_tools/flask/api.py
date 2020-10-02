@@ -67,7 +67,7 @@ def convert_to_instance(
         try:
             return model.objects.filter(**filter_data).first(), None
         except MongoValidationError:
-            return None, {'errors': {field: 'Invalid data'}}
+            raise ValidationError('Invalid identifier', field_name=field)
 
     def to_instance_sql(filter_data):
         """Convert to instance from sql db"""
