@@ -367,7 +367,7 @@ class CommonTestCase(unittest.TestCase):
             return None
 
     @classmethod
-    def generate_test_data(cls, model, key: str, many: bool = False, count: int = 21, other_data: dict = None):
+    def generate_test_data(cls, model, key: str, many: bool = False, count: int = 21, **other_fields):
         """
         Generate test data for devices tests. This method reading file ./test_data.json
 
@@ -375,10 +375,10 @@ class CommonTestCase(unittest.TestCase):
         :param key Key in data json
         :param many Create many instances. True/False
         :param count Count create instances. Only many=True.
-        :param other_data Other data for create or update default data
+        :param other_fields Other data for create or update default data
 
         """
-        other_data = other_data if other_data else {}
+        other_data = other_fields if other_fields else {}
         count_create = count if many else 1
         instance = None
         instances = []
