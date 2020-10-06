@@ -1,10 +1,10 @@
 import json
+import os
 import random
 import string
 import unittest
 from datetime import datetime, date
-from os import getcwd
-from os.path import dirname
+from os.path import join as path_join
 from typing import Any, Type, Union
 
 from marshmallow import Schema
@@ -23,6 +23,9 @@ class CommonTestCase(unittest.TestCase):
     request_method = None
     user_model = None
     test_docs = []
+    test_data_file_name = None
+    _base_dir = None
+    models_map = None
 
     @classmethod
     def setUpClass(cls, *args):
@@ -125,7 +128,7 @@ class CommonTestCase(unittest.TestCase):
             url = self.url
         else:
             request_data = {}
-            url = '/'.join(self.url.split('/')[:-2]+[bad_id])
+            url = '/'.join(self.url.split('/')[:-2] + [bad_id])
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
             return self.assertIn('Invalid identifier', json_response['errors'][field][0])
@@ -149,7 +152,7 @@ class CommonTestCase(unittest.TestCase):
             url = self.url
         else:
             request_data = {}
-            url = '/'.join(self.url.split('/')[:-2]+[not_found_id])
+            url = '/'.join(self.url.split('/')[:-2] + [not_found_id])
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
             return self.assertIn('Could not find document.', json_response['errors'][field][0])
@@ -320,7 +323,7 @@ class CommonTestCase(unittest.TestCase):
         :param new_value New value
         :param check_new_value Check new value in edit field. True/False
         """
-        url = '/'.join(self.url.split('/')[:-2]+[str(edit_obj.id)])
+        url = '/'.join(self.url.split('/')[:-2] + [str(edit_obj.id)])
         json_response = self._send_request(url=url, params={edit_field: new_value})
         self.assertIn('status', json_response)
         self.assertEqual('success', json_response['status'])
@@ -367,17 +370,21 @@ class CommonTestCase(unittest.TestCase):
             return None
 
     @classmethod
-    def generate_test_data(cls, model, key: str, many: bool = False, count: int = 21, **other_fields):
+    def generate_test_data(cls, key: str, many: bool = False, count: int = 21, **other_fields):
         """
         Generate test data for devices tests. This method reading file ./test_data.json
 
-        :param model Model instance
-        :param key Key in data json
+        :param key Model name in data json
         :param many Create many instances. True/False
         :param count Count create instances. Only many=True.
         :param other_fields Other data for create or update default data
 
         """
+        if not cls.test_data_file_name or not cls._base_dir:
+            raise AssertionError("Error! ")
+        if not (model := cls.models_map.get(key)):
+            raise AssertionError("Error! ")
+
         other_data = other_fields if other_fields else {}
         count_create = count if many else 1
         instance = None
@@ -385,15 +392,16 @@ class CommonTestCase(unittest.TestCase):
 
         def get_data_from_file():
             """Read data in json file"""
-            test_dir = getcwd()
-            if test_dir.split('/')[-1] != 'tests':
-                test_dir = dirname(test_dir)
-            with open(f'{test_dir}/test_data.json', encoding='utf-8') as file:
-                return json.load(file).get(key)
+            path = path_join(cls._base_dir, "backend", 'app', 'tests', cls.test_data_file_name)
+            if os.path.exists(path) and os.path.isfile(path):
+                with open(path, encoding='utf-8') as file:
+                    return json.load(file).get(key)
+            else:
+                raise AssertionError(f'File not found! {path}')
 
         data = get_data_from_file()
         data.update(other_data)
-        for i in range(1, count_create+1):
+        for i in range(1, count_create + 1):
             create_data = {key: f(value, i=i) if isinstance(value, str) else value for key, value in data.items()}
             instance = model.objects.create(**create_data)
             instances.append(instance)
@@ -470,6 +478,7 @@ class CommonTestCase(unittest.TestCase):
         :param document Document for check
         :param expected_values Expected values
         """
+
         def convert_value_to_str(value):
             if isinstance(value, str):
                 return value
