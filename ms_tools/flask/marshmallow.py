@@ -6,6 +6,7 @@ from mongoengine import ValidationError as MongoValidationError
 
 from bson import ObjectId
 
+
 def convert_to_instance(
         model: Any,
         type_db: str,
