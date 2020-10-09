@@ -1,12 +1,15 @@
 import json
+import os
 import random
 import string
 import unittest
-from os import getcwd
-from os.path import dirname
-from typing import Any
+from datetime import datetime, date
+from os.path import join as path_join
+from typing import Any, Type, Union
 
 from marshmallow import Schema
+from mongoengine.base import TopLevelDocumentMetaclass
+from snuff_utils.string_functions import f
 
 
 class CommonTestCase(unittest.TestCase):
@@ -19,6 +22,10 @@ class CommonTestCase(unittest.TestCase):
     url = None
     request_method = None
     user_model = None
+    test_docs = []
+    test_data_file_name = None
+    _base_dir = None
+    models_map = None
 
     @classmethod
     def setUpClass(cls, *args):
@@ -60,6 +67,11 @@ class CommonTestCase(unittest.TestCase):
         cls.app_context.pop()
 
     @classmethod
+    def setUp(cls):
+        if not cls.request_method:
+            raise AssertionError("Not found request method!")
+
+    @classmethod
     def create_user(cls, username='unit@test.ru', password='test_pass', first_name='test', **other_data):
         user_data = {"email": username, "first_name": first_name, "phone": '+1234567890', **other_data}
         if not (auth_user := cls.user_model.objects(**user_data).first()):
@@ -68,46 +80,83 @@ class CommonTestCase(unittest.TestCase):
         auth_user.save()
         return auth_user
 
-    def auth(self, auth_url: str = '/api/login/', username: str = 'unit@test.ru', password: str = 'test_pass'):
+    def auth(self, auth_url: str = '/api/login/', username: str = 'unit@test.ru', password: str = 'test_pass',
+             blocked_user: bool = False, not_found_user: bool = False):
         """
         Authorization function.
 
         :param auth_url URL for authorization
         :param username Username
         :param password Password
+        :param blocked_user
+        :param not_found_user
         """
+        self.client.cookie_jar.clear()
+        self.authorized = False
+        status_code = 400 if blocked_user or not_found_user else 200
         json_request = {"email": username, "password": password}
-        response = self.client.post(auth_url, json=json_request)
-        self.authorized = response.status_code == 200
+        json_response = self._send_request(url=auth_url, params=json_request, expected_status_code=status_code,
+                                           request_method=self.client.post)
+        if blocked_user:
+            self.assertIn('errors', json_response)
+            self.assertIn("email", json_response['errors'])
+            self.assertEqual("The user is blocked.", json_response['errors']["email"])
+        elif not_found_user:
+            self.assertIn('errors', json_response)
+            self.assertIn("email", json_response['errors'])
+            self.assertEqual("No user found for this email address.", json_response['errors']["email"])
+        else:
+            self.authorized = True
+            self.assertIn("email", json_response)
+            self.assertEqual(username, json_response["email"])
 
-    def validate_invalid_doc_id(self, error_type='bad_id', error_message_substr='',
-                                id_in='url', _id=None, data=None, doc_field='id', status_code=400):
+    def validate_invalid_doc_id(self, id_in_data: bool = False, field: str = 'id', bad_id: str = '2',
+                                status_code: int = 400, many: bool = False):
         """
         Validate invalid identifier
 
-        :param error_type
-        :param error_message_substr
-        :param id_in
-        :param _id
-        :param data
-        :param doc_field
+        :param id_in_data
+        :param field
+        :param bad_id
         :param status_code
+        :param many
         """
+        if many:
+            bad_id = [bad_id]
+        if id_in_data:
+            request_data = {field: bad_id}
+            url = self.url
+        else:
+            request_data = {}
+            url = '/'.join(self.url.split('/')[:-2] + [bad_id])
+        json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
+        if many:
+            return self.assertIn('Invalid identifier', json_response['errors'][field][0])
+        self.assertIn('Invalid identifier', json_response['errors'][field])
 
-        args = (self.url,)
-        params = {}
-        if id_in == 'data':
-            params['json'] = {doc_field: _id} if data is None else data
-        response = self.request_method(*args, **params)
-        json_response = self.check_response(response, status_code)
-        self.assertIn('errors', json_response)
-        self.assertIn(doc_field, json_response['errors'])
-        if error_type == 'not_found':
-            self.assertIn('Could not find document.', json_response['errors'][doc_field])
-        elif error_type == 'bad_id':
-            self.assertEqual(json_response['errors'][doc_field], ['Invalid identifier'])
-        if error_message_substr:
-            self.assertIn(error_message_substr, json_response['errors'][doc_field])
+    def validate_not_found_doc(self, id_in_data: bool = False, field: str = 'id', status_code: int = 400,
+                               not_found_id: str = '555555555555555555555555', many: bool = False):
+        """
+        Validate error: Could not find document.
+
+        :param id_in_data True/False. (False = id in url)
+        :param field Field (Only id_in_data=True)
+        :param not_found_id Not found id
+        :param status_code Expected status code
+        :param many
+        """
+        if many:
+            not_found_id = [not_found_id]
+        if id_in_data:
+            request_data = {field: not_found_id}
+            url = self.url
+        else:
+            request_data = {}
+            url = '/'.join(self.url.split('/')[:-2] + [not_found_id])
+        json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
+        if many:
+            return self.assertIn('Could not find document.', json_response['errors'][field][0])
+        self.assertIn('Could not find document.', json_response['errors'][field])
 
     def validate_forbidden_access(self, role_keys: list):
         """
@@ -124,22 +173,34 @@ class CommonTestCase(unittest.TestCase):
             self.assertIn("role", json_response['errors'])
             self.assertEqual(f"insufficient rights for {role} role", json_response['errors']['role'])
 
-    def validate_field_in_bad_request(self, field_name: str, valid_type: Any, field_is_required: bool = False):
+    def validate_field_in_bad_request(self,
+                                      field_name: str,
+                                      valid_type: Any = None,
+                                      bad_data: list = None,
+                                      field_is_required: bool = False,
+                                      required_data: dict = None):
         """
         Success validate field in bad request
 
         :param field_name Field name
         :param valid_type Valid type for this field
+        :param bad_data Bad data
         :param field_is_required Field is required in request? True/False
+        :param required_data Required data for request
         """
         data = {}
-        for invalid_param in self.generate_bad_data(valid_type=valid_type):
+        bad_data = bad_data if bad_data else self.generate_bad_data(valid_type=valid_type)
+        json_response = None
+        for invalid_param in bad_data:
             data[field_name] = invalid_param
+            if required_data:
+                data.update(required_data)
             json_response = self._send_request(params=data, expected_status_code=400)
             self.assertIn('errors', json_response)
             self.assertIn(field_name, json_response['errors'])
         if field_is_required:
             self.validate_required_field(field_name)
+        return json_response
 
     def validate_required_field(self, field_name: str):
         """
@@ -147,9 +208,10 @@ class CommonTestCase(unittest.TestCase):
 
         :param field_name Field is required in request
         """
-        json_response = self._send_request(params={}, expected_status_code=400)
+        json_response = self._send_request(params={"test": "data"}, expected_status_code=400)
         self.assertIn('errors', json_response)
         self.assertIn(field_name, json_response['errors'])
+        self.assertIn('Missing data for required field.', json_response['errors'][field_name])
 
     def validate_error_parse_json(self):
         """Check request. Error, if not json in request"""
@@ -166,7 +228,7 @@ class CommonTestCase(unittest.TestCase):
             print(f"Ошибки при валидации ответа: \n{validation_errors}")
         self.assertDictEqual(validation_errors, {})
 
-    def validate_limit(self, return_schema: Schema, limit: int = 20):
+    def validate_response(self, return_schema: Type[Schema], limit: int = None):
         """
         Validate response and limit from GET method
 
@@ -175,7 +237,8 @@ class CommonTestCase(unittest.TestCase):
         """
         json_response = self._send_request()
         self.validate_json(json_response, return_schema)
-        self.assertEqual(len(json_response['items']), limit)
+        if limit:
+            self.assertEqual(len(json_response['items']), limit)
 
     def validate_offset(self, return_schema):
         """
@@ -199,9 +262,9 @@ class CommonTestCase(unittest.TestCase):
         self.assertEqual(json_response['items'][0]['id'], second_doc_id)
 
     def validate_filter(self,
-                        return_schema: Schema,
+                        return_schema: Type[Schema],
                         field: str,
-                        value: str,
+                        value: Union[bool, str, int, list],
                         check_value: bool = True,
                         icontains: bool = False):
         """
@@ -221,6 +284,29 @@ class CommonTestCase(unittest.TestCase):
                 self.assertIn(value, item[field]) if icontains else self.assertEqual(value, item[field])
         return items
 
+    def validate_sorting(self, field_name: str, return_schema: Type[Schema], reverse: bool = True):
+        """
+        Validate sorting
+
+        :param field_name Order by field name
+        :param return_schema Return schema
+        :param reverse Reverse sorting
+        """
+        json_response = self._send_request(params={"order_by": f"-{field_name}" if reverse else field_name})
+        self.validate_json(json_response, return_schema)
+        first_iteration = True
+        self.assertGreater(json_response["total_count"], 0)
+        prev_value = None
+        for item in json_response['items']:
+            if first_iteration:
+                prev_value = item[field_name]
+                first_iteration = False
+                continue
+            if reverse:
+                self.assertLessEqual(item[field_name], prev_value)
+            else:
+                self.assertGreaterEqual(item[field_name], prev_value)
+
     def create_success(self, model, required_data):
         """Create success. Only required fields"""
         json_response = self._send_request(params=required_data, expected_status_code=201)
@@ -228,7 +314,7 @@ class CommonTestCase(unittest.TestCase):
         self.assertNotEqual(instance, None)
         instance.delete()
 
-    def edit_success(self, edit_obj, edit_field: str, new_value: str, check_new_value=True):
+    def edit_success(self, edit_obj, edit_field: str, new_value: Union[str, list, int], check_new_value=True):
         """
         Success edit object.
 
@@ -237,27 +323,45 @@ class CommonTestCase(unittest.TestCase):
         :param new_value New value
         :param check_new_value Check new value in edit field. True/False
         """
-        json_response = self._send_request(params={edit_field: new_value})
+        url = '/'.join(self.url.split('/')[:-2] + [str(edit_obj.id)])
+        json_response = self._send_request(url=url, params={edit_field: new_value})
         self.assertIn('status', json_response)
         self.assertEqual('success', json_response['status'])
         edit_obj.reload()
         if check_new_value:
             self.assertEqual(getattr(edit_obj, edit_field), new_value)
 
-    def delete_success(self, delete_obj, deleted_state='hidden'):
+    def edit_success_all_fields(self, edit_obj, data: dict, check_new_values: bool = True):
+        """
+        Success edit object. (All fields)
+
+        :param edit_obj Object for edit
+        :param data Data
+        :param check_new_values Check new values. True/False
+        """
+        url = '/'.join(self.url.split('/')[:-2] + [str(edit_obj.id)])
+        json_response = self._send_request(url=url, params=data)
+        self.assertIn('status', json_response)
+        self.assertEqual('success', json_response['status'])
+        edit_obj.reload()
+        if check_new_values:
+            self._check_new_values(edit_obj, expected_values=data)
+
+    def delete_success(self, delete_obj, deleted_state='deleted'):
         """
         Success delete object
 
         :param delete_obj Object for delete
         :param deleted_state Deleted state. For check deleted doc.
         """
-        json_response = self._send_request(params={"id": delete_obj.id})
+        json_response = self._send_request(params={"id": str(delete_obj.id)})
         self.assertIn('status', json_response)
         self.assertEqual('success', json_response['status'])
+        delete_obj.reload()
         self.assertEqual(getattr(delete_obj, "state"), deleted_state)
 
     def check_response(self, response, status_code=200):
-        self.assertEqual(response.status_code, status_code)
+        self.assertEqual(status_code, response.status_code)
         self.assertTrue(response.is_json)
         try:
             return response.json
@@ -265,38 +369,43 @@ class CommonTestCase(unittest.TestCase):
             self.assertTrue(False)
             return None
 
-    @staticmethod
-    def generate_test_data(model, key: str, many: bool = False, count: int = 21, other_data: dict = None):
+    @classmethod
+    def generate_test_data(cls, key: str, many: bool = False, count: int = 21, **other_fields):
         """
         Generate test data for devices tests. This method reading file ./test_data.json
 
-        :param model Model instance
-        :param key Key in data json
+        :param key Model name in data json
         :param many Create many instances. True/False
         :param count Count create instances. Only many=True.
-        :param other_data Other data for create or update default data
+        :param other_fields Other data for create or update default data
 
         """
-        other_data = other_data if other_data else {}
+        if not cls.test_data_file_name or not cls._base_dir:
+            raise AssertionError("Error! ")
+        if not (model := cls.models_map.get(key)):
+            raise AssertionError("Error! ")
+
+        other_data = other_fields if other_fields else {}
         count_create = count if many else 1
         instance = None
         instances = []
 
         def get_data_from_file():
             """Read data in json file"""
-            test_dir = getcwd()
-            if test_dir.split('/')[-1] != 'tests':
-                test_dir = dirname(test_dir)
-            with open(f'{test_dir}/test_data.json', encoding='utf-8') as file:
-                return json.load(file).get(key)
+            path = path_join(cls._base_dir, "backend", 'app', 'tests', cls.test_data_file_name)
+            if os.path.exists(path) and os.path.isfile(path):
+                with open(path, encoding='utf-8') as file:
+                    return json.load(file).get(key)
+            else:
+                raise AssertionError(f'File not found! {path}')
 
         data = get_data_from_file()
         data.update(other_data)
-        for i in range(count_create):
-            data = {key: f(value, i=i) if isinstance(value, str) else value for key, value in data.items()}
-            if not (instance := model.objects(**data).first()):
-                instance = model.objects.create(**data)
+        for i in range(1, count_create + 1):
+            create_data = {key: f(value, i=i) if isinstance(value, str) else value for key, value in data.items()}
+            instance = model.objects.create(**create_data)
             instances.append(instance)
+            cls.test_docs.append(instance)
         if not many or count_create == 1:
             return instance
         else:
@@ -337,7 +446,8 @@ class CommonTestCase(unittest.TestCase):
                       url: str = None,
                       params: dict = None,
                       return_to_json: bool = True,
-                      expected_status_code: int = 200):
+                      expected_status_code: int = 200,
+                      request_method: Any = None):
         """
         Send request method.
 
@@ -348,10 +458,46 @@ class CommonTestCase(unittest.TestCase):
         :return Response or json_response
         """
         url_for_request = url if url else self.url
-        request_params = {"json": params}
-        if self.request_method == self.client.get:
-            request_params['params'] = request_params.pop('json', {})
-        response = self.request_method(url_for_request, **request_params)
+        request_method = request_method if request_method else self.request_method
+        if params:
+            request_params = {"json": params}
+            if request_method == self.client.get:
+                request_params['query_string'] = request_params.pop('json', {})
+        else:
+            request_params = {}
+        response = request_method(url_for_request, **request_params)
+        self.assertEqual(expected_status_code, response.status_code, )
         if return_to_json:
             return self.check_response(response, status_code=expected_status_code)
         return response
+
+    def _check_new_values(self, document, expected_values):
+        """
+        Check new values in document.
+
+        :param document Document for check
+        :param expected_values Expected values
+        """
+
+        def convert_value_to_str(value):
+            if isinstance(value, str):
+                return value
+            elif isinstance(value.__class__, TopLevelDocumentMetaclass):
+                return str(value.id)
+            else:
+                raise AssertionError("Error convert to string: unknown type")
+
+        document.reload()
+        for field, exp_value in expected_values.items():
+            cur_value = getattr(document, field)
+            if isinstance(cur_value, list) and isinstance(exp_value, list):
+                for sub_value in cur_value:
+                    self.assertIn(convert_value_to_str(sub_value), exp_value)
+            elif isinstance(cur_value, datetime):
+                self.assertEqual(datetime.strptime(exp_value, "%Y-%m-%dT%H:%M:%S.%fZ"), cur_value)
+            elif isinstance(cur_value, date):
+                self.assertEqual(datetime.strptime(exp_value, "%Y-%m-%d").date(), cur_value)
+            elif field == 'password':
+                self.assertEqual(document.check_password(exp_value), True)
+            else:
+                self.assertEqual(exp_value, convert_value_to_str(cur_value))

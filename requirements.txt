@@ -1,9 +1,10 @@
 flask~=1.1.2
 requests~=2.24.0
 marshmallow~=3.8.0
-python-dotenv~=0.14.0
-boto3-stubs~=1.15.10.0
 mongoengine~=0.20.0
-boto3~=1.15.10
+python-dotenv~=0.14.0
+boto3-stubs~=1.15.12.1
+boto3~=1.15.12
 setuptools~=50.3.0
-botocore~=1.18.10
+botocore~=1.18.12
+snuff-utils~=1.0.4

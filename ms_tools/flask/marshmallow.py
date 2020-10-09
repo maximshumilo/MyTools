@@ -4,6 +4,8 @@ from typing import Any
 from marshmallow import ValidationError
 from mongoengine import ValidationError as MongoValidationError
 
+from bson import ObjectId
+
 
 def convert_to_instance(
         model: Any,
@@ -13,7 +15,7 @@ def convert_to_instance(
         allow_deleted: bool = True,
         check_deleted_by: str = 'state',
         return_field: str = None,
-        assert_every=True,
+        assert_every: bool = False,
         error: str = 'Could not find document.'):
     """
     Convert to instance
@@ -41,10 +43,12 @@ def convert_to_instance(
 
     def get_value_from_instances(instances, **kwargs):
         """Get field in instances"""
-        instances = instances if isinstance(instances, list) else [instances]
+        instances = list(instances) if many else [instances]
+
         fields = model.columns if kwargs['type_db'] == 'sql' else model._fields.keys()
         if return_field in fields:
-            return [getattr(doc, return_field) for doc in instances]
+            result = [getattr(doc, return_field) for doc in instances]
+            return result if many else result[0]
         raise ValidationError("Field not found in model")
 
     def query(value, many_instances=False, **kwargs):
@@ -65,7 +69,10 @@ def convert_to_instance(
 
     def convert_one(value, **kwargs):
         """Convert to one instance"""
-        return query(value, **kwargs).first()
+        if ObjectId.is_valid(value):
+            return query(value, **kwargs).first()
+        else:
+            raise ValidationError(message='Invalid identifier', field_name=field)
 
     def convert_many(value, **kwargs):
         """Convert to many instances"""
@@ -76,6 +83,9 @@ def convert_to_instance(
         else:
             raise ValidationError(message='Invalid type data', field_name=field)
         values = list(set(values))
+        for val in values:
+            if not ObjectId.is_valid(val):
+                raise ValidationError(message=f'Invalid identifier: {val}', field_name=field)
         result = query(values, many_instances=True, **kwargs).all()
         if assert_every and len(result) != len(values):
             raise ValidationError(message='Not all documents were found', field_name=field)
