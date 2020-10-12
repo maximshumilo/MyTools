@@ -41,7 +41,7 @@ def get_params(schema, **schema_params):
 def convert_to_instance(
         model,
         type_db: str,
-        field: str = 'id',
+        field: str = 'pk',
         allow_deleted: bool = False,
         check_deleted_by: str = 'state',
         optional_filter: dict = None,
