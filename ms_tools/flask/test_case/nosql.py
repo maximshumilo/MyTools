@@ -52,7 +52,7 @@ class CommonTestCase(unittest.TestCase):
         # Check test database name in current db
         cls.test_db_name = app.config['TEST_DB_NAME']
         dev_db_name = app.config['DEV_DB_NAME']
-        if cls.test_db_name in cls.db.connection.database_names():
+        if cls.test_db_name in cls.db.connection.list_database_names():
             cls.db.connection.drop_database(cls.test_db_name)
 
         # Create all collections from dev db
@@ -110,7 +110,7 @@ class CommonTestCase(unittest.TestCase):
             self.assertIn("email", json_response)
             self.assertEqual(username, json_response["email"])
 
-    def validate_invalid_doc_id(self, id_in_data: bool = False, field: str = 'id', bad_id: str = '2',
+    def validate_invalid_doc_id(self, id_in_data: bool = False, field: str = 'pk', bad_id: str = 'a1',
                                 status_code: int = 400, many: bool = False):
         """
         Validate invalid identifier
@@ -131,11 +131,15 @@ class CommonTestCase(unittest.TestCase):
             url = '/'.join(self.url.split('/')[:-2] + [bad_id])
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
-            return self.assertIn('Invalid identifier', json_response['errors'][field][0])
-        self.assertIn('Invalid identifier', json_response['errors'][field])
+            return self.assertIn('Could not find document.', json_response['errors'][field])
+        self.assertIn('Could not find document.', json_response['errors'][field])
 
-    def validate_not_found_doc(self, id_in_data: bool = False, field: str = 'id', status_code: int = 400,
-                               not_found_id: str = '555555555555555555555555', many: bool = False):
+    def validate_not_found_doc(self,
+                               id_in_data: bool = False,
+                               field: str = 'pk',
+                               status_code: int = 400,
+                               not_found_id: str = '555555555555555555555555',
+                               many: bool = False):
         """
         Validate error: Could not find document.
 
@@ -155,8 +159,8 @@ class CommonTestCase(unittest.TestCase):
             url = '/'.join(self.url.split('/')[:-2] + [not_found_id])
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
-            return self.assertIn('Could not find document.', json_response['errors'][field][0])
-        self.assertIn('Could not find document.', json_response['errors'][field])
+            return self.assertIn(f'Could not find document.', json_response['errors'][field])
+        self.assertIn(f'Could not find document.', json_response['errors'][field])
 
     def validate_forbidden_access(self, role_keys: list):
         """
@@ -192,9 +196,10 @@ class CommonTestCase(unittest.TestCase):
         bad_data = bad_data if bad_data else self.generate_bad_data(valid_type=valid_type)
         json_response = None
         for invalid_param in bad_data:
-            data[field_name] = invalid_param
             if required_data:
                 data.update(required_data)
+            data[field_name] = invalid_param
+
             json_response = self._send_request(params=data, expected_status_code=400)
             self.assertIn('errors', json_response)
             self.assertIn(field_name, json_response['errors'])
@@ -421,7 +426,8 @@ class CommonTestCase(unittest.TestCase):
             list: [None, "", {}, 123, "string", "string1", {"key": "value"}, 1.45],
             "date": [None, True, {}, [], 1, "string", {"key": "value"}, ["item1"], [1, 2], '2020-01-01 10:10'],
             "datetime": [None, True, {}, [], 1, "string", {"key": "value"}, ["item1"], [1, 2], '2020-01-01'],
-            "email": [1, None, True, [], {}, "", "string", {"k": "v"}, ["i"], [1], 1.2]
+            "email": [1, None, True, [], {}, "", "string", {"k": "v"}, ["i"], [1], 1.2],
+            "doc_id": [None, True, {}, [], {"key": "value"}, ["item1"], [1, 2]],
         }
         bad_data = invalid_data_map[valid_type]
 
@@ -466,7 +472,7 @@ class CommonTestCase(unittest.TestCase):
         else:
             request_params = {}
         response = request_method(url_for_request, **request_params)
-        self.assertEqual(expected_status_code, response.status_code, )
+        self.assertEqual(expected_status_code, response.status_code)
         if return_to_json:
             return self.check_response(response, status_code=expected_status_code)
         return response
