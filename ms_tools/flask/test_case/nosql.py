@@ -6,10 +6,12 @@ import unittest
 from datetime import datetime, date
 from os.path import join as path_join
 from typing import Any, Type, Union
+from copy import deepcopy
 
 from marshmallow import Schema
 from mongoengine.base import TopLevelDocumentMetaclass
 from snuff_utils.string_functions import f
+from mongoengine import connect
 
 
 class CommonTestCase(unittest.TestCase):
@@ -26,38 +28,38 @@ class CommonTestCase(unittest.TestCase):
     test_data_file_name = None
     _base_dir = None
     models_map = None
+    counter_map = {}
+    user_for_auth = None
 
     @classmethod
-    def setUpClass(cls, *args):
+    def setUpClass(cls, create_app, config, db, *args):
         """
         Start Flask app end check test database name in current db
 
-        Please pass three arguments:
-            args[0] - Function for create flask app
-            args[1] - Test config for flask app
-            args[2] - DB
+        :param create_app: Function for create Flask app
+        :param config: Config for Flask app
+        :param db: Database for tests
         """
-        if len(args) < 3:
-            raise AssertionError('Please pass three arguments')
-        create_flask_func = args[0]
-        config = args[1]
-        cls.db = args[2]
-
         # Start flask app
-        app = create_flask_func(config)
+        app = create_app(config)
         cls.client = app.test_client()
         cls.app_context = app.app_context()
         cls.app_context.push()
+        cls.db = db
+        cls._prepare_database(config=config, db=db)
 
-        # Check test database name in current db
-        cls.test_db_name = app.config['TEST_DB_NAME']
-        dev_db_name = app.config['DEV_DB_NAME']
-        if cls.test_db_name in cls.db.connection.database_names():
-            cls.db.connection.drop_database(cls.test_db_name)
+    @classmethod
+    def _prepare_database(cls, config, db):
+        """Prepare test database"""
+        cls.test_db_name = db.connection._MongoClient__default_database_name
+
+        # Check test database name in test db
+        if cls.test_db_name in db.connection.list_database_names():
+            db.connection.drop_database(cls.test_db_name)
 
         # Create all collections from dev db
-        for collection_name in cls.db.connection[dev_db_name].list_collection_names():
-            cls.db.connection[cls.test_db_name].create_collection(name=collection_name)
+        for collection_name in list(set([item._get_collection_name() for item in cls.models_map.values()])):
+            db.connection[cls.test_db_name].create_collection(name=collection_name)
 
     @classmethod
     def tearDownClass(cls):
@@ -72,16 +74,14 @@ class CommonTestCase(unittest.TestCase):
             raise AssertionError("Not found request method!")
 
     @classmethod
-    def create_user(cls, username='unit@test.ru', password='test_pass', first_name='test', **other_data):
-        user_data = {"email": username, "first_name": first_name, "phone": '+1234567890', **other_data}
-        if not (auth_user := cls.user_model.objects(**user_data).first()):
-            auth_user = cls.user_model.objects.create(**user_data)
-        auth_user.set_password(password)
-        auth_user.save()
-        return auth_user
+    def create_user(cls, key: str, password: str = 'test_pass', **other_data):
+        cls.user_for_auth = cls.generate_test_data(key=key, **other_data)
+        cls.user_for_auth.set_password(password)
+        cls.user_for_auth.save()
+        cls.pass_for_auth = password
+        return cls.user_for_auth
 
-    def auth(self, auth_url: str = '/api/login/', username: str = 'unit@test.ru', password: str = 'test_pass',
-             blocked_user: bool = False, not_found_user: bool = False):
+    def auth(self, auth_url: str = '/api/login/', blocked_user: bool = False, not_found_user: bool = False):
         """
         Authorization function.
 
@@ -93,8 +93,9 @@ class CommonTestCase(unittest.TestCase):
         """
         self.client.cookie_jar.clear()
         self.authorized = False
+        username = self.user_for_auth.email
         status_code = 400 if blocked_user or not_found_user else 200
-        json_request = {"email": username, "password": password}
+        json_request = {"email": username, "password": self.pass_for_auth}
         json_response = self._send_request(url=auth_url, params=json_request, expected_status_code=status_code,
                                            request_method=self.client.post)
         if blocked_user:
@@ -110,7 +111,7 @@ class CommonTestCase(unittest.TestCase):
             self.assertIn("email", json_response)
             self.assertEqual(username, json_response["email"])
 
-    def validate_invalid_doc_id(self, id_in_data: bool = False, field: str = 'id', bad_id: str = '2',
+    def validate_invalid_doc_id(self, id_in_data: bool = False, field: str = 'pk', bad_id: str = 'a1',
                                 status_code: int = 400, many: bool = False):
         """
         Validate invalid identifier
@@ -131,11 +132,15 @@ class CommonTestCase(unittest.TestCase):
             url = '/'.join(self.url.split('/')[:-2] + [bad_id])
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
-            return self.assertIn('Invalid identifier', json_response['errors'][field][0])
-        self.assertIn('Invalid identifier', json_response['errors'][field])
+            return self.assertIn('Could not find document.', json_response['errors'][field])
+        self.assertIn('Could not find document.', json_response['errors'][field])
 
-    def validate_not_found_doc(self, id_in_data: bool = False, field: str = 'id', status_code: int = 400,
-                               not_found_id: str = '555555555555555555555555', many: bool = False):
+    def validate_not_found_doc(self,
+                               id_in_data: bool = False,
+                               field: str = 'pk',
+                               status_code: int = 400,
+                               not_found_id: str = '555555555555555555555555',
+                               many: bool = False):
         """
         Validate error: Could not find document.
 
@@ -145,18 +150,18 @@ class CommonTestCase(unittest.TestCase):
         :param status_code Expected status code
         :param many
         """
-        if many:
-            not_found_id = [not_found_id]
         if id_in_data:
+            if many:
+                not_found_id = [not_found_id]
             request_data = {field: not_found_id}
             url = self.url
         else:
             request_data = {}
-            url = '/'.join(self.url.split('/')[:-2] + [not_found_id])
+            url = self.template_url.format(**{field: not_found_id})
         json_response = self._send_request(url=url, params=request_data, expected_status_code=status_code)
         if many:
-            return self.assertIn('Could not find document.', json_response['errors'][field][0])
-        self.assertIn('Could not find document.', json_response['errors'][field])
+            return self.assertIn(f'Could not find document.', json_response['errors'][field])
+        self.assertIn(f'Could not find document.', json_response['errors'][field])
 
     def validate_forbidden_access(self, role_keys: list):
         """
@@ -192,9 +197,10 @@ class CommonTestCase(unittest.TestCase):
         bad_data = bad_data if bad_data else self.generate_bad_data(valid_type=valid_type)
         json_response = None
         for invalid_param in bad_data:
-            data[field_name] = invalid_param
             if required_data:
                 data.update(required_data)
+            data[field_name] = invalid_param
+
             json_response = self._send_request(params=data, expected_status_code=400)
             self.assertIn('errors', json_response)
             self.assertIn(field_name, json_response['errors'])
@@ -399,11 +405,11 @@ class CommonTestCase(unittest.TestCase):
             else:
                 raise AssertionError(f'File not found! {path}')
 
-        data = get_data_from_file()
-        data.update(other_data)
-        for i in range(1, count_create + 1):
-            create_data = {key: f(value, i=i) if isinstance(value, str) else value for key, value in data.items()}
-            instance = model.objects.create(**create_data)
+        raw_data = get_data_from_file()
+        raw_data.update(other_data)
+        for i in range(count_create):
+            data = cls._counter_data(key_object=key, raw_data=raw_data)
+            instance = model.objects.create(**data)
             instances.append(instance)
             cls.test_docs.append(instance)
         if not many or count_create == 1:
@@ -421,7 +427,8 @@ class CommonTestCase(unittest.TestCase):
             list: [None, "", {}, 123, "string", "string1", {"key": "value"}, 1.45],
             "date": [None, True, {}, [], 1, "string", {"key": "value"}, ["item1"], [1, 2], '2020-01-01 10:10'],
             "datetime": [None, True, {}, [], 1, "string", {"key": "value"}, ["item1"], [1, 2], '2020-01-01'],
-            "email": [1, None, True, [], {}, "", "string", {"k": "v"}, ["i"], [1], 1.2]
+            "email": [1, None, True, [], {}, "", "string", {"k": "v"}, ["i"], [1], 1.2],
+            "doc_id": [None, True, {}, [], {"key": "value"}, ["item1"], [1, 2]],
         }
         bad_data = invalid_data_map[valid_type]
 
@@ -441,6 +448,19 @@ class CommonTestCase(unittest.TestCase):
                 bad_data.append(0)
 
         return bad_data
+
+    @classmethod
+    def _counter_data(cls, key_object, raw_data):
+        new_data = {}
+        for field, value in deepcopy(raw_data).items():
+            if isinstance(value, str) and '{i}' in value:
+                cls.counter_map.setdefault(key_object, {})
+                last_count = cls.counter_map[key_object].get(field, 0)
+                cls.counter_map[key_object][field] = last_count + 1
+                new_data[field] = value.format(i=cls.counter_map[key_object][field])
+            else:
+                new_data[field] = value
+        return new_data
 
     def _send_request(self,
                       url: str = None,
@@ -466,7 +486,7 @@ class CommonTestCase(unittest.TestCase):
         else:
             request_params = {}
         response = request_method(url_for_request, **request_params)
-        self.assertEqual(expected_status_code, response.status_code, )
+        self.assertEqual(expected_status_code, response.status_code)
         if return_to_json:
             return self.check_response(response, status_code=expected_status_code)
         return response

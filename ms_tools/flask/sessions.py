@@ -81,10 +81,10 @@ class UserSession:
         if has_request_context() and not hasattr(_request_ctx_stack.top, 'user'):
             if user_id := session.get('user_id'):
                 if self.type_db == 'nosql':
-                    user = self.User.objects.filter(state='active', id=user_id).first()
+                    user = self.User.objects.filter(state='active', pk=user_id).first()
                     _request_ctx_stack.top.user = user
                 elif self.type_db == 'sql':
-                    user = self.User.where(state='active', id=user_id).first()
+                    user = self.User.where(state='active', pk=user_id).first()
                     _request_ctx_stack.top.user = user
             elif self.dev and hasattr(_request_ctx_stack.top.request.authorization, 'username') \
                     and hasattr(_request_ctx_stack.top.request.authorization, 'password'):
