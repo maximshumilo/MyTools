@@ -1,19 +1,18 @@
-import json
-import os
-import random
-import string
-import unittest
 from copy import deepcopy
 from datetime import datetime, date
-from os.path import join as path_join
+from json import load as json_in_str
+from os.path import isfile, exists, join as path_join
+from random import choice
+from string import digits, ascii_letters
 from typing import Any, Type, Union
+from unittest import TestCase
 
 from marshmallow import Schema
 from mongoengine import Document
 from mongoengine.base import TopLevelDocumentMetaclass
 
 
-class CommonTestCase(unittest.TestCase):
+class CommonTestCase(TestCase):
     test_db_name = None
     db = None
     client = None
@@ -105,7 +104,6 @@ class CommonTestCase(unittest.TestCase):
         :param password Password
         :param blocked_user
         :param not_found_user
-        :param bad_auth
         """
         self.client.cookie_jar.clear()
         self.authorized = False
@@ -428,9 +426,9 @@ class CommonTestCase(unittest.TestCase):
         def get_data_from_file():
             """Read data in json file"""
             path = path_join(cls._base_dir, "backend", 'app', 'tests', cls.test_data_file_name)
-            if os.path.exists(path) and os.path.isfile(path):
+            if exists(path) and isfile(path):
                 with open(path, encoding='utf-8') as file:
-                    return json.load(file).get(key)
+                    return json_in_str(file).get(key)
             else:
                 raise AssertionError(f'File not found! {path}')
 
@@ -470,7 +468,7 @@ class CommonTestCase(unittest.TestCase):
 
         if min_length is not None:
             if valid_type == str:
-                bad_item = ''.join(random.choice(string.ascii_letters + string.digits)
+                bad_item = ''.join(choice(ascii_letters + digits)
                                    for _ in range(1, min_length))
                 bad_data.append(bad_item)
             else:
