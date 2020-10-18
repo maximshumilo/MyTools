@@ -10,8 +10,7 @@ from copy import deepcopy
 
 from marshmallow import Schema
 from mongoengine.base import TopLevelDocumentMetaclass
-from snuff_utils.string_functions import f
-from mongoengine import connect
+from mongoengine import Document
 
 
 class CommonTestCase(unittest.TestCase):
@@ -29,7 +28,9 @@ class CommonTestCase(unittest.TestCase):
     _base_dir = None
     models_map = None
     counter_map = {}
+    template_url = None
     user_for_auth = None
+    password_for_auth = None
 
     @classmethod
     def setUpClass(cls, create_app, config, db, *args):
@@ -74,14 +75,27 @@ class CommonTestCase(unittest.TestCase):
             raise AssertionError("Not found request method!")
 
     @classmethod
-    def create_user(cls, key: str, password: str = 'test_pass', **other_data):
-        cls.user_for_auth = cls.generate_test_data(key=key, **other_data)
-        cls.user_for_auth.set_password(password)
-        cls.user_for_auth.save()
-        cls.pass_for_auth = password
-        return cls.user_for_auth
+    def create_user(cls, key: str = 'user', password: str = 'test_pass', **other_data) -> Document:
+        """
+        Create user and set password
 
-    def auth(self, auth_url: str = '/api/login/', blocked_user: bool = False, not_found_user: bool = False):
+        :param key: Key data for user. (In *.json file)
+        :param password: User password
+        :param other_data: Other fields
+
+        :return Created user
+        """
+        user = cls.generate_test_data(key=key, **other_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+    def auth(self,
+             username: str = None,
+             password: str = None,
+             auth_url: str = '/api/login/',
+             blocked_user: bool = False,
+             not_found_user: bool = False):
         """
         Authorization function.
 
@@ -93,9 +107,12 @@ class CommonTestCase(unittest.TestCase):
         """
         self.client.cookie_jar.clear()
         self.authorized = False
-        username = self.user_for_auth.email
+
+        username = username if username else self.user_for_auth.email
+        password = password if password else self.password_for_auth
+
         status_code = 400 if blocked_user or not_found_user else 200
-        json_request = {"email": username, "password": self.pass_for_auth}
+        json_request = {"email": username, "password": password}
         json_response = self._send_request(url=auth_url, params=json_request, expected_status_code=status_code,
                                            request_method=self.client.post)
         if blocked_user:
@@ -171,8 +188,10 @@ class CommonTestCase(unittest.TestCase):
         """
         for role in role_keys:
             self.client.cookie_jar.clear()
-            user = self.create_user(username=f'{role}@forbidden.com', password='pass', role=role)
-            self.auth(username=user.email, password='pass')
+            email = f'{role}@forbidden.com'
+            password = 'pass'
+            self.create_user(email=email, password=password, role=role)
+            self.auth(username=email, password=password)
             json_response = self._send_request(expected_status_code=403)
             self.assertIn('errors', json_response)
             self.assertIn("role", json_response['errors'])
